@@ -1,0 +1,289 @@
+{% extends "base.html" %}
+
+{% block title %}Data Arsip - SISTEM INFORMASI REKAPITULASI BANTUAN PENDIDIKAN/BEASISWA ANAK NELAYAN ACEH{% endblock %}
+
+{% block content %}
+<style>
+  .panel-arsip-interaktif {
+    transition: transform 200ms ease, box-shadow 200ms ease, border-color 200ms ease;
+    box-shadow: 0 12px 24px -8px rgba(15, 23, 42, 0.14), 0 4px 10px -4px rgba(124, 58, 237, 0.14);
+  }
+
+  .panel-arsip-interaktif:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 20px 34px -8px rgba(124, 58, 237, 0.25), 0 8px 16px -4px rgba(15, 23, 42, 0.16);
+  }
+
+  .kartu-kecil-arsip {
+    transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease, background-color 180ms ease;
+    box-shadow: 0 6px 14px -4px rgba(15, 23, 42, 0.12), 0 2px 6px -2px rgba(124, 58, 237, 0.14);
+  }
+
+  .kartu-kecil-arsip:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 20px -6px rgba(124, 58, 237, 0.26), 0 4px 10px -3px rgba(15, 23, 42, 0.14);
+  }
+
+  @media print {
+    .panel-arsip-interaktif,
+    .panel-arsip-interaktif:hover,
+    .kartu-kecil-arsip,
+    .kartu-kecil-arsip:hover {
+      transform: none !important;
+      box-shadow: none !important;
+    }
+  }
+</style>
+
+<div class="space-y-4">
+  <!-- Header Halaman Data Arsip -->
+  <div style="box-shadow: 0 14px 28px -8px rgba(76, 29, 149, 0.22), 0 6px 14px -4px rgba(3, 105, 161, 0.14);"
+       class="panel-arsip-interaktif bg-white rounded-xl border border-violet-300 border-l-4 border-l-violet-600 p-4 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+    <div>
+      <span class="inline-block text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-violet-100 text-violet-900 border border-violet-200 mb-1">
+        Arsip Terkunci &bull; Hanya Restore Bila Diperlukan
+      </span>
+      <h1 class="text-xl sm:text-2xl font-bold text-slate-900">Data Arsip Penerima</h1>
+      <p class="text-xs sm:text-sm text-slate-600">
+        Data arsip tidak dapat langsung diedit atau dihapus di tempat agar rekapitulasi historis tetap aman. Jika ada kebutuhan resmi instansi, gunakan tombol <strong>Restore</strong> untuk mengembalikannya ke data aktif.
+      </p>
+    </div>
+
+    <div class="grid grid-cols-2 gap-2.5 shrink-0">
+      <div class="kartu-kecil-arsip bg-violet-50 border border-violet-300 rounded-xl px-3.5 py-2">
+        <div class="text-[10px] font-bold uppercase tracking-wide text-violet-800">Total Data Arsip</div>
+        <div class="text-lg font-extrabold text-violet-950 mt-0.5">
+          {{ daftar_arsip | length }} <span class="text-xs font-semibold text-violet-800">data</span>
+        </div>
+      </div>
+      <div class="kartu-kecil-arsip bg-amber-50 border border-amber-300 rounded-xl px-3.5 py-2">
+        <div class="text-[10px] font-bold uppercase tracking-wide text-amber-800">Total Dana Arsip</div>
+        <div class="text-base sm:text-lg font-extrabold text-amber-950 mt-0.5">
+          Rp {{ total_dana_semua_arsip | rupiah }}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pesan Flash -->
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <div class="space-y-2">
+        {% for category, message in messages %}
+          <div class="panel-arsip-interaktif rounded-xl px-4 py-2.5 text-xs sm:text-sm font-medium border
+            {% if category == 'success' %}
+              bg-emerald-50 text-emerald-950 border-emerald-300
+            {% elif category == 'warning' %}
+              bg-rose-50 text-rose-950 border-rose-300
+            {% else %}
+              bg-sky-50 text-sky-950 border-sky-300
+            {% endif %}">
+            {{ message }}
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
+
+  <!-- Panel Arsipkan Data Aktif & Restore Per Tahun -->
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+    <!-- Pindahkan Data Aktif ke Arsip -->
+    <form method="post" action="{{ url_for('arsip') }}"
+          style="box-shadow: 0 12px 24px -8px rgba(3, 105, 161, 0.2);"
+          class="panel-arsip-interaktif bg-white rounded-xl border border-sky-300 border-l-4 border-l-sky-600 p-4 space-y-3">
+      <input type="hidden" name="aksi" value="arsipkan_tahun" />
+      <div>
+        <h2 class="text-sm font-bold text-slate-900">Arsipkan Data Aktif ke Arsip</h2>
+        <p class="text-xs text-slate-600">Pindahkan data dari daftar aktif (tersedia {{ daftar_aktif | length }} data aktif) ke arsip terkunci.</p>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label for="tahun_arsip" class="block text-[11px] font-bold text-sky-950 mb-1">Tahun Ajaran Aktif</label>
+          <select id="tahun_arsip" name="tahun_arsip"
+                  class="kartu-kecil-arsip w-full rounded-lg border border-sky-300 bg-sky-50/50 px-3 py-2 text-xs text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-400">
+            <option value="">-- Semua Tahun Aktif --</option>
+            {% for thn in daftar_tahun_aktif %}
+              <option value="{{ thn }}">{{ thn }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div>
+          <label for="kab_arsip" class="block text-[11px] font-bold text-sky-950 mb-1">Kabupaten / Kota (Opsional)</label>
+          <select id="kab_arsip" name="kab_arsip"
+                  class="kartu-kecil-arsip w-full rounded-lg border border-sky-300 bg-sky-50/50 px-3 py-2 text-xs text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-400">
+            <option value="">-- Semua Kabupaten/Kota --</option>
+            {% for kab in peta_kabupaten_lhok.keys() %}
+              <option value="{{ kab }}">{{ kab }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      <div class="flex justify-end pt-1">
+        <button type="submit"
+                onclick="return confirm('Pindahkan data aktif sesuai pilihan ke Data Arsip? Data arsip akan terkunci dari edit/hapus langsung.');"
+                class="px-4 py-2 rounded-lg bg-sky-700 hover:bg-sky-800 text-white text-xs font-bold cursor-pointer">
+          Pindahkan ke Arsip
+        </button>
+      </div>
+    </form>
+
+    <!-- Restore Data Arsip Per Tahun Ajaran -->
+    <form method="post" action="{{ url_for('arsip') }}"
+          style="box-shadow: 0 12px 24px -8px rgba(76, 29, 149, 0.16);"
+          class="panel-arsip-interaktif bg-white rounded-xl border border-violet-300 border-l-4 border-l-violet-600 p-4 space-y-3">
+      <input type="hidden" name="aksi" value="restore_tahun" />
+      <div>
+        <h2 class="text-sm font-bold text-slate-900">Restore Data Arsip per Tahun Ajaran</h2>
+        <p class="text-xs text-slate-600">Kembalikan data arsip pada tahun ajaran tertentu ke Data Penerima aktif bila ada kebutuhan perubahan data.</p>
+      </div>
+
+      <div>
+        <label for="tahun_restore" class="block text-[11px] font-bold text-violet-950 mb-1">Pilih Tahun Ajaran di Arsip</label>
+        <select id="tahun_restore" name="tahun_restore"
+                class="kartu-kecil-arsip w-full rounded-lg border border-violet-300 bg-violet-50/50 px-3 py-2 text-xs text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-violet-400">
+          <option value="">-- Pilih Tahun Ajaran Arsip --</option>
+          {% for thn in daftar_tahun_arsip %}
+            <option value="{{ thn }}">{{ thn }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="flex justify-end pt-1">
+        <button type="submit"
+                onclick="return confirm('Restore seluruh data arsip pada tahun ajaran yang dipilih kembali ke Data Penerima aktif?');"
+                class="px-4 py-2 rounded-lg bg-violet-700 hover:bg-violet-800 text-white text-xs font-bold cursor-pointer">
+          Restore Tahun ke Aktif
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Filter Tampilan Tabel Arsip -->
+  <form method="get" action="{{ url_for('arsip') }}"
+        class="panel-arsip-interaktif bg-white rounded-xl border border-slate-300 p-3.5 flex flex-wrap items-end gap-3">
+    <div class="min-w-[160px]">
+      <label for="filter_tahun" class="block text-[11px] font-bold text-slate-700 mb-1">Filter Tahun Ajaran</label>
+      <select id="filter_tahun" name="tahun"
+              class="kartu-kecil-arsip w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-1.5 text-xs text-slate-800">
+        <option value="">Semua Tahun</option>
+        {% for thn in daftar_tahun_arsip %}
+          <option value="{{ thn }}" {% if tahun_filter == thn %}selected{% endif %}>{{ thn }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="min-w-[220px]">
+      <label for="filter_kab" class="block text-[11px] font-bold text-slate-700 mb-1">Filter Kabupaten / Kota</label>
+      <select id="filter_kab" name="kab"
+              class="kartu-kecil-arsip w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-1.5 text-xs text-slate-800">
+        <option value="">Semua Kabupaten/Kota</option>
+        {% for kab in peta_kabupaten_lhok.keys() %}
+          <option value="{{ kab }}" {% if kab_filter == kab %}selected{% endif %}>{{ kab }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="flex items-center gap-2">
+      <button type="submit" class="px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold cursor-pointer">
+        Tampilkan
+      </button>
+      <a href="{{ url_for('arsip') }}" class="kartu-kecil-arsip px-3 py-1.5 rounded-lg border border-slate-300 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold">
+        Reset
+      </a>
+    </div>
+
+    <div class="ml-auto text-xs text-slate-700 font-semibold">
+      Tampil: {{ arsip_tampil | length }} data &bull; Dana: {{ total_dana_arsip | rupiah }}
+    </div>
+  </form>
+
+  <!-- Tabel Data Arsip (Terkunci Edit/Hapus, Hanya Restore) -->
+  <div style="box-shadow: 0 14px 28px -8px rgba(76, 29, 149, 0.16);"
+       class="panel-arsip-interaktif bg-white rounded-xl border border-violet-300 overflow-hidden">
+    <div class="px-4 py-3 bg-violet-50 border-b border-violet-200 flex flex-wrap items-center justify-between gap-2">
+      <div class="font-bold text-xs sm:text-sm text-violet-950">
+        Daftar Data Arsip (Terkunci dari Edit &amp; Hapus Langsung)
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-violet-200/80 text-violet-950">
+          Mode Arsip Terkunci
+        </span>
+        <button type="button"
+                onclick="toggleTabelArsip('panel-tabel-arsip', this)"
+                class="px-2.5 py-1 rounded-md border border-violet-300 bg-white hover:bg-violet-100/60 text-violet-950 text-[11px] font-bold cursor-pointer">
+          Sembunyikan
+        </button>
+      </div>
+    </div>
+
+    <div id="panel-tabel-arsip" class="overflow-x-auto">
+      <table class="w-full text-left border-collapse text-xs">
+        <thead>
+          <tr class="bg-slate-100 text-slate-800 border-b border-slate-300 uppercase text-[11px]">
+            <th class="py-2.5 px-3">No</th>
+            <th class="py-2.5 px-3">Tahun</th>
+            <th class="py-2.5 px-3">Semester</th>
+            <th class="py-2.5 px-3 min-w-[145px]">Kabupaten/Kota</th>
+            <th class="py-2.5 px-3 min-w-[205px]">Lhok</th>
+            <th class="py-2.5 px-3 min-w-[270px]">Nama Penerima</th>
+            <th class="py-2.5 px-3">Jenjang</th>
+            <th class="py-2.5 px-3">No. Rekening</th>
+            <th class="py-2.5 px-3 text-right">Jumlah Dana</th>
+            <th class="py-2.5 px-3 text-center">Aksi</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-200">
+          {% for baris in arsip_tampil %}
+            <tr class="hover:bg-violet-50/40">
+              <td class="py-2 px-3 font-semibold text-slate-600">{{ loop.index }}</td>
+              <td class="py-2 px-3 font-medium">{{ baris.tahun or '-' }}</td>
+              <td class="py-2 px-3">{{ baris.semester or '-' }}</td>
+              <td class="py-2 px-3 min-w-[145px] font-semibold text-slate-800">{{ baris.kabupaten_kota or '-' }}</td>
+              <td class="py-2 px-3 min-w-[205px]">{{ baris.lhok or '-' }}</td>
+              <td class="py-2 px-3 min-w-[270px] font-bold text-slate-900">{{ baris.nama_penerima or '-' }}</td>
+              <td class="py-2 px-3">
+                <span class="px-2 py-0.5 rounded bg-sky-100 text-sky-950 font-semibold text-[11px]">
+                  {{ baris.strata_pendidikan or '-' }}
+                </span>
+              </td>
+              <td class="py-2 px-3 font-mono text-[11px]">{{ baris.nomor_rekening or '-' }}</td>
+              <td class="py-2 px-3 text-right font-bold text-slate-900">
+                {{ baris.jumlah_dana | rupiah }}
+              </td>
+              <td class="py-2 px-3 text-center">
+                <form method="post" action="{{ url_for('arsip') }}" class="inline">
+                  <input type="hidden" name="aksi" value="restore_item" />
+                  <input type="hidden" name="row_id" value="{{ baris.id }}" />
+                  <button type="submit"
+                          onclick="return confirm('Restore data {{ baris.nama_penerima }} ke Data Penerima aktif?');"
+                          class="px-2.5 py-1 rounded-md bg-violet-700 hover:bg-violet-800 text-white text-[11px] font-bold cursor-pointer">
+                    Restore
+                  </button>
+                </form>
+              </td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="10" class="py-8 px-4 text-center text-slate-500">
+                Belum ada data di dalam Data Arsip.
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+  function toggleTabelArsip(panelId, tombol) {
+    const panel = document.getElementById(panelId);
+    if (!panel) return;
+    const tersembunyi = panel.classList.toggle("hidden");
+    tombol.textContent = tersembunyi ? "Tampilkan" : "Sembunyikan";
+  }
+</script>
+{% endblock %}

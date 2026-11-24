@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}SISTEM INFORMASI REKAPITULASI BANTUAN PENDIDIKAN/BEASISWA ANAK NELAYAN ACEH{% endblock %}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @keyframes masukTabCepat {
+      0% {
+        opacity: 0.5;
+      }
+      100% {
+        opacity: 1;
+      }
+    }
+
+    .konten-masuk-lembut {
+      animation: masukTabCepat 140ms ease-out forwards;
+    }
+
+    button,
+    [role="button"],
+    label:has(input[type="checkbox"]),
+    label:has(input[type="radio"]) {
+      transition: transform 180ms ease, box-shadow 180ms ease, background-color 180ms ease, border-color 180ms ease;
+    }
+
+    button:hover:not(:disabled),
+    [role="button"]:hover:not([aria-disabled="true"]),
+    label:has(input[type="checkbox"]):hover,
+    label:has(input[type="radio"]):hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 16px -4px rgba(3, 105, 161, 0.28), 0 4px 8px -3px rgba(15, 23, 42, 0.12);
+    }
+
+    button:active:not(:disabled),
+    [role="button"]:active:not([aria-disabled="true"]),
+    label:has(input[type="checkbox"]):active,
+    label:has(input[type="radio"]):active {
+      transform: translateY(0px);
+    }
+
+    @media print {
+      .konten-masuk-lembut {
+        animation: none !important;
+        opacity: 1 !important;
+        transform: none !important;
+      }
+
+      button,
+      [role="button"],
+      label:has(input[type="checkbox"]),
+      label:has(input[type="radio"]) {
+        transform: none !important;
+        box-shadow: none !important;
+      }
+    }
+  </style>
+</head>
+<body class="bg-[#b5defd] text-slate-800 h-screen overflow-hidden flex flex-col text-xs sm:text-[13px] print:bg-white print:h-auto print:overflow-visible">
+  <!-- Header Atas: Gradasi Putih ke Biru Dongker & Tulisan Kuning -->
+  <header class="w-full shrink-0 text-white border-b border-slate-800 shadow-xs z-20 print:hidden"
+          style="background: linear-gradient(90deg, #ffffff 0%, #e2e8f0 22%, #1d4e7a 56%, #0b2239 82%, #071726 100%);">
+    <div class="w-full px-3 sm:px-5 py-2 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+      <!-- Logo & Nama Instansi di Kiri -->
+      <div class="flex items-center gap-2.5 min-w-0">
+        {% if logo_instansi %}
+          <img src="{{ url_for('static', filename=logo_instansi) }}"
+               alt="Logo {{ nama_instansi }}"
+               class="h-8 sm:h-9 w-auto max-w-[84px] object-contain shrink-0 block" />
+        {% else %}
+          <div class="h-8 sm:h-9 px-2 flex items-center justify-center rounded border border-slate-300 bg-white/90 text-[10px] font-bold text-[#0b2239] shrink-0">
+            LOGO
+          </div>
+        {% endif %}
+
+        <div class="min-w-0">
+          <div class="text-xs sm:text-[13px] font-extrabold uppercase tracking-wide text-[#0b2239] leading-tight truncate">
+            {{ nama_instansi }}
+          </div>
+        </div>
+      </div>
+
+      <!-- Nama Aplikasi di Sebelah Kanan (2 Baris, Warna Kuning) -->
+      <div class="md:text-right shrink-0 leading-tight">
+        <div class="font-bold text-[11px] sm:text-[13px] text-amber-300 uppercase tracking-wide"
+             style="text-shadow: 0 1px 2px rgba(7, 23, 38, 0.85);">
+          SISTEM INFORMASI REKAPITULASI
+        </div>
+        <div class="font-bold text-[11px] sm:text-[13px] text-amber-300 uppercase tracking-wide"
+             style="text-shadow: 0 1px 2px rgba(7, 23, 38, 0.85);">
+          BANTUAN PENDIDIKAN/BEASISWA ANAK NELAYAN ACEH
+        </div>
+      </div>
+    </div>
+
+    <!-- Strip Aksen Warna Sesuai Tab Aktif -->
+    {% if request.endpoint == 'dashboard' %}
+      <div class="h-1 w-full bg-teal-500"></div>
+    {% elif request.endpoint == 'penerima' %}
+      <div class="h-1 w-full bg-blue-500"></div>
+    {% elif request.endpoint == 'realisasi_penyaluran' %}
+      <div class="h-1 w-full bg-indigo-500"></div>
+    {% elif request.endpoint == 'format_bank' %}
+      <div class="h-1 w-full bg-emerald-500"></div>
+    {% elif request.endpoint == 'import_data' %}
+      <div class="h-1 w-full bg-amber-400"></div>
+    {% elif request.endpoint == 'arsip' %}
+      <div class="h-1 w-full bg-violet-500"></div>
+    {% else %}
+      <div class="h-1 w-full bg-sky-400"></div>
+    {% endif %}
+  </header>
+
+  <!-- Badan Aplikasi: Sidebar Biru Dongker di Kiri + Konten Utama di Kanan -->
+  <div class="flex-1 min-h-0 flex flex-col md:flex-row overflow-hidden print:block print:overflow-visible">
+    <!-- Sidebar Navigasi Biru Dongker -->
+    <aside class="w-full md:w-56 lg:w-60 shrink-0 bg-[#0b2239] text-slate-100 border-b md:border-b-0 md:border-r border-slate-800 flex flex-col justify-between print:hidden">
+      <div class="p-2.5 sm:p-3 space-y-2">
+        <div class="hidden md:flex items-center justify-between px-2 py-1 border-b border-white/10">
+          <span class="text-[10px] font-bold uppercase tracking-widest text-sky-200/80">
+            Menu Navigasi
+          </span>
+          <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-white/10 text-sky-100">
+            6 Tab
+          </span>
+        </div>
+
+        <nav class="flex md:flex-col gap-1 overflow-x-auto md:overflow-visible pb-0.5 md:pb-0 text-xs font-semibold">
+          <a href="{{ url_for('dashboard') }}"
+             class="inline-flex md:flex items-center gap-2 px-2.5 py-2 rounded-lg transition whitespace-nowrap {% if request.endpoint == 'dashboard' %}bg-teal-600 text-white shadow-xs{% else %}text-slate-200 hover:bg-white/10 hover:text-white{% endif %}">
+            <span class="h-2 w-2 rounded-full shrink-0 {% if request.endpoint == 'dashboard' %}bg-white{% else %}bg-teal-400{% endif %}"></span>
+            <span>Dashboard</span>
+          </a>
+
+          <a href="{{ url_for('penerima') }}"
+             class="inline-flex md:flex items-center gap-2 px-2.5 py-2 rounded-lg transition whitespace-nowrap {% if request.endpoint == 'penerima' %}bg-blue-600 text-white shadow-xs{% else %}text-slate-200 hover:bg-white/10 hover:text-white{% endif %}">
+            <span class="h-2 w-2 rounded-full shrink-0 {% if request.endpoint == 'penerima' %}bg-white{% else %}bg-blue-400{% endif %}"></span>
+            <span>Data Penerima</span>
+          </a>
+
+          <a href="{{ url_for('realisasi_penyaluran') }}"
+             class="inline-flex md:flex items-center gap-2 px-2.5 py-2 rounded-lg transition whitespace-nowrap {% if request.endpoint == 'realisasi_penyaluran' %}bg-indigo-600 text-white shadow-xs{% else %}text-slate-200 hover:bg-white/10 hover:text-white{% endif %}">
+            <span class="h-2 w-2 rounded-full shrink-0 {% if request.endpoint == 'realisasi_penyaluran' %}bg-white{% else %}bg-indigo-400{% endif %}"></span>
+            <span>Realisasi Penyaluran</span>
+          </a>
+
+          <a href="{{ url_for('format_bank') }}"
+             class="inline-flex md:flex items-center gap-2 px-2.5 py-2 rounded-lg transition whitespace-nowrap {% if request.endpoint == 'format_bank' %}bg-emerald-700 text-white shadow-xs{% else %}text-slate-200 hover:bg-white/10 hover:text-white{% endif %}">
+            <span class="h-2 w-2 rounded-full shrink-0 {% if request.endpoint == 'format_bank' %}bg-white{% else %}bg-emerald-400{% endif %}"></span>
+            <span>Format Bank</span>
+          </a>
+
+          <a href="{{ url_for('import_data') }}"
+             class="inline-flex md:flex items-center gap-2 px-2.5 py-2 rounded-lg transition whitespace-nowrap {% if request.endpoint == 'import_data' %}bg-amber-600 text-white shadow-xs{% else %}text-slate-200 hover:bg-white/10 hover:text-white{% endif %}">
+            <span class="h-2 w-2 rounded-full shrink-0 {% if request.endpoint == 'import_data' %}bg-white{% else %}bg-amber-400{% endif %}"></span>
+            <span>Import Data</span>
+          </a>
+
+          <a href="{{ url_for('arsip') }}"
+             class="inline-flex md:flex items-center gap-2 px-2.5 py-2 rounded-lg transition whitespace-nowrap {% if request.endpoint == 'arsip' %}bg-violet-600 text-white shadow-xs{% else %}text-slate-200 hover:bg-white/10 hover:text-white{% endif %}">
+            <span class="h-2 w-2 rounded-full shrink-0 {% if request.endpoint == 'arsip' %}bg-white{% else %}bg-violet-400{% endif %}"></span>
+            <span>Data Arsip</span>
+          </a>
+        </nav>
+      </div>
+
+      <div class="px-3 py-2.5 border-t border-white/10 space-y-2.5 shrink-0">
+        <a href="{{ url_for('logout') }}"
+           class="w-full inline-flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-lg bg-rose-600/90 hover:bg-rose-600 text-white text-xs font-bold transition cursor-pointer">
+          <span>Keluar / Logout</span>
+        </a>
+
+        <div class="hidden md:block text-[10px] text-sky-200/70 leading-relaxed">
+          <div class="font-semibold text-sky-100">SI Beasiswa Nelayan Aceh</div>
+          <div>18 Kabupaten / Kota</div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Area Konten Utama dengan Nuansa Biru Langit yang Lebih Menyala -->
+    <main class="flex-1 min-w-0 overflow-y-auto w-full px-3 sm:px-5 py-3.5 bg-gradient-to-br from-[#bce2fd] via-[#c7e7fe] to-[#add9fc] print:bg-white print:overflow-visible">
+      <div class="max-w-7xl mx-auto konten-masuk-lembut">
+        {% block content %}{% endblock %}
+      </div>
+    </main>
+  </div>
+</body>
+</html>

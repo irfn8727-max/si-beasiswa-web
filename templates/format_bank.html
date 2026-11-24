@@ -1,0 +1,402 @@
+{% extends "base.html" %}
+
+{% block title %}Format Bank - SISTEM INFORMASI REKAPITULASI BANTUAN PENDIDIKAN/BEASISWA ANAK NELAYAN ACEH{% endblock %}
+
+{% macro nama_siswa_saja(nama) -%}
+  {%- set teks = (nama or '') | trim -%}
+  {%- set atas = teks | upper -%}
+  {%- if ' BINTI ' in atas -%}
+    {%- set idx = atas.find(' BINTI ') -%}
+    {{- teks[:idx] | trim -}}
+  {%- elif ' BIN ' in atas -%}
+    {%- set idx = atas.find(' BIN ') -%}
+    {{- teks[:idx] | trim -}}
+  {%- elif atas.startswith('BINTI ') -%}
+    {{- teks[6:] | trim -}}
+  {%- elif atas.startswith('BIN ') -%}
+    {{- teks[4:] | trim -}}
+  {%- else -%}
+    {{- teks -}}
+  {%- endif -%}
+{%- endmacro %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto space-y-6">
+  <!-- Header Halaman Bernuansa Biru Langit -->
+  <div style="box-shadow: 0 16px 32px -8px rgba(3, 105, 161, 0.25), 0 8px 16px -6px rgba(14, 165, 233, 0.15);"
+       class="bg-white rounded-xl border border-sky-300 border-l-4 border-l-sky-600 p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div>
+      <span class="inline-block text-[11px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-sky-100 text-sky-900 border border-sky-200 mb-1">
+        Realisasi Pencairan
+      </span>
+      <h1 class="text-2xl font-bold text-slate-900">Format Bank</h1>
+      <p class="text-sm text-slate-600">Pilih Kabupaten/Kota dan Semester (1 Ganjil / 2 Genap) yang akan direalisasi, lalu tekan <strong>TAMPILKAN BANK</strong>.</p>
+    </div>
+
+    {% if data_bank %}
+    <div class="flex flex-wrap items-center gap-2 print:hidden shrink-0">
+      <button type="button" id="btnSalinTabel"
+              style="box-shadow: 0 5px 12px -2px rgba(3, 105, 161, 0.2);"
+              class="px-3.5 py-2 text-xs font-semibold rounded-lg border border-sky-300 bg-sky-50 text-sky-950 hover:bg-sky-100 hover:-translate-y-0.5 hover:shadow-md transition duration-200 cursor-pointer">
+        Salin Tabel
+      </button>
+      <button type="button" id="btnExportExcelBank"
+              style="box-shadow: 0 5px 12px -2px rgba(5, 150, 105, 0.25);"
+              class="px-3.5 py-2 text-xs font-semibold rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-950 hover:bg-emerald-100 hover:-translate-y-0.5 hover:shadow-md transition duration-200 cursor-pointer">
+        Export Excel (.xls)
+      </button>
+      <button type="button" onclick="window.print()"
+              style="box-shadow: 0 7px 16px -3px rgba(3, 105, 161, 0.42);"
+              class="px-3.5 py-2 text-xs font-semibold rounded-lg bg-sky-700 text-white hover:bg-sky-800 hover:-translate-y-0.5 hover:shadow-lg transition duration-200 cursor-pointer">
+        Cetak / Simpan PDF
+      </button>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Pesan Notifikasi -->
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <div class="space-y-2 print:hidden">
+        {% for category, message in messages %}
+          <div style="box-shadow: 0 8px 18px -4px rgba(3, 105, 161, 0.2), 0 4px 10px -3px rgba(180, 83, 9, 0.14);"
+               class="rounded-xl border border-amber-300 bg-amber-50/95 px-4 py-3 text-sm font-medium text-amber-950">
+            {{ message }}
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
+
+  <!-- Pilihan 18 Kabupaten/Kota & Filter Semester (Aksen Teal Lembut) -->
+  <div style="box-shadow: 0 16px 32px -8px rgba(3, 105, 161, 0.24), 0 8px 16px -6px rgba(13, 148, 136, 0.15);"
+       class="bg-white rounded-xl border border-teal-300 border-l-4 border-l-teal-500 p-5 print:hidden">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4 pb-3 border-b border-teal-100">
+      <div>
+        <h2 class="text-base font-bold text-teal-950">Pilih Kabupaten/Kota Siap Data</h2>
+        <p class="text-xs text-slate-600 mt-0.5">Centang kabupaten/kota dan pilih semester yang akan direalisasi, lalu tekan <strong>TAMPILKAN BANK</strong>.</p>
+      </div>
+      <div class="flex items-center gap-2 text-xs">
+        <button type="button" id="btnPilihSemuaBank"
+                style="box-shadow: 0 4px 10px -2px rgba(13, 148, 136, 0.2);"
+                class="px-3 py-1.5 rounded-lg border border-teal-300 bg-teal-50 text-teal-950 font-semibold hover:bg-teal-100 hover:-translate-y-0.5 hover:shadow-md transition duration-200 cursor-pointer">
+          Pilih Semua (18)
+        </button>
+        <button type="button" id="btnBersihkanBank"
+                style="box-shadow: 0 4px 10px -2px rgba(3, 105, 161, 0.14);"
+                class="px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-slate-700 font-semibold hover:bg-slate-100 hover:-translate-y-0.5 hover:shadow-md transition duration-200 cursor-pointer">
+          Kosongkan
+        </button>
+      </div>
+    </div>
+
+    <form id="formFormatBank" method="POST" action="{{ url_for('format_bank') }}" class="space-y-4">
+      <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2.5">
+        {% for kab_nama in peta_kabupaten_lhok.keys() %}
+        <label style="box-shadow: 0 5px 12px -3px rgba(3, 105, 161, 0.16), 0 2px 6px -2px rgba(13, 148, 136, 0.1);"
+               class="flex items-center gap-2 rounded-lg border border-teal-200/90 bg-teal-50/35 hover:bg-teal-50 hover:-translate-y-1 hover:shadow-lg px-3 py-2 text-xs font-medium text-slate-800 cursor-pointer select-none transition duration-200">
+          <input type="checkbox" name="kabupaten_bank" value="{{ kab_nama }}"
+                 {% if kab_nama in kab_terpilih %}checked{% endif %}
+                 class="chk-kab-bank rounded border-teal-300 text-teal-600 focus:ring-teal-500" />
+          <span class="truncate">{{ kab_nama }}</span>
+        </label>
+        {% endfor %}
+      </div>
+
+      <div class="pt-3 border-t border-teal-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div class="flex flex-wrap items-center gap-4 text-xs text-slate-700">
+          <div class="flex items-center gap-2">
+            <label for="tahun_bank" class="font-semibold text-teal-950">Tahun Ajaran:</label>
+            <select id="tahun_bank" name="tahun_bank"
+                    style="box-shadow: 0 5px 12px -2px rgba(3, 105, 161, 0.18), 0 1px 3px rgba(15, 23, 42, 0.05);"
+                    class="px-3 py-1.5 rounded-lg border border-teal-300 bg-teal-50/40 text-slate-800 font-medium hover:-translate-y-0.5 hover:shadow-md focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-400 transition duration-200 cursor-pointer">
+              <option value="" {% if not tahun_filter %}selected{% endif %}>Semua Tahun Ajaran</option>
+              {% for th in range(2005, 2051) %}
+              {% set tahun_ajaran = th ~ "/" ~ (th + 1) %}
+              <option value="{{ tahun_ajaran }}" {% if tahun_filter == tahun_ajaran or (not tahun_filter and th == 2026) %}selected{% endif %}>{{ tahun_ajaran }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <label for="semester_bank" class="font-semibold text-teal-950">SEMESTER:</label>
+            <select id="semester_bank" name="semester_bank"
+                    style="box-shadow: 0 5px 12px -2px rgba(3, 105, 161, 0.18), 0 1px 3px rgba(15, 23, 42, 0.05);"
+                    class="px-3 py-1.5 rounded-lg border border-teal-300 bg-teal-50/40 text-slate-800 font-medium hover:-translate-y-0.5 hover:shadow-md focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-400 transition duration-200 cursor-pointer">
+              <option value="" {% if not semester_filter %}selected{% endif %}>Semua SEMESTER</option>
+              <option value="1 Ganjil" {% if semester_filter == "1 Ganjil" %}selected{% endif %}>1 Ganjil</option>
+              <option value="2 Genap" {% if semester_filter == "2 Genap" %}selected{% endif %}>2 Genap</option>
+            </select>
+          </div>
+        </div>
+
+        <button type="submit"
+                style="box-shadow: 0 8px 18px -4px rgba(13, 148, 136, 0.42);"
+                class="px-5 py-2.5 text-sm font-semibold rounded-lg bg-teal-600 text-white hover:bg-teal-700 hover:-translate-y-1 hover:shadow-xl transition duration-200 cursor-pointer">
+          TAMPILKAN BANK
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Ringkasan Per Kabupaten/Kota (Tampil di Layar & Cetak PDF) -->
+  {% if data_bank %}
+  {% set ns_ringkasan = namespace(rekap=[]) %}
+  {% for item in data_bank %}
+    {% set kab_nama = item.kabupaten_kota or 'TIDAK TERISI' %}
+    {% set dana_item = item.jumlah_dana | int %}
+    {% set ns_ketemu = namespace(ada=false) %}
+    {% for r in ns_ringkasan.rekap %}
+      {% if r.kabupaten == kab_nama %}
+        {% set _ = r.update({'jumlah_siswa': r.jumlah_siswa + 1, 'total_dana': r.total_dana + dana_item}) %}
+        {% set ns_ketemu.ada = true %}
+      {% endif %}
+    {% endfor %}
+    {% if not ns_ketemu.ada %}
+      {% set _ = ns_ringkasan.rekap.append({'kabupaten': kab_nama, 'jumlah_siswa': 1, 'total_dana': dana_item}) %}
+    {% endif %}
+  {% endfor %}
+
+  <div style="box-shadow: 0 16px 32px -8px rgba(3, 105, 161, 0.22), 0 8px 16px -6px rgba(13, 148, 136, 0.14);"
+       class="bg-white rounded-xl border border-teal-300 border-l-4 border-l-teal-600 overflow-x-auto print:border-slate-300 print:border-l-0 print:shadow-none">
+    <div class="px-5 py-3.5 border-b border-teal-200/80 flex flex-wrap items-center justify-between gap-2 print:border-slate-300">
+      <div>
+        <h2 class="text-sm font-bold text-teal-950 print:text-slate-900">Rekapitulasi Kabupaten/Kota Terpilih</h2>
+        <p class="text-xs text-slate-600 mt-0.5">Rincian kabupaten/kota, jumlah siswa, dan jumlah dana untuk keperluan pencairan bank.</p>
+      </div>
+      <div class="text-xs font-semibold text-teal-900 print:text-slate-800">
+        {{ ns_ringkasan.rekap | length }} Kabupaten/Kota
+      </div>
+    </div>
+
+    <table class="w-full text-left border-collapse text-sm">
+      <thead>
+        <tr class="border-b border-teal-800 bg-teal-700 text-xs font-bold uppercase tracking-wider text-white print:bg-slate-800">
+          <th class="py-3 px-5 whitespace-nowrap w-16">NO</th>
+          <th class="py-3 px-5">KABUPATEN / KOTA</th>
+          <th class="py-3 px-5 whitespace-nowrap text-right">JUMLAH SISWA</th>
+          <th class="py-3 px-5 whitespace-nowrap text-right">JUMLAH DANA</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-200 bg-white">
+        {% for r in ns_ringkasan.rekap %}
+        <tr class="hover:bg-teal-50/60">
+          <td class="py-2.5 px-5 whitespace-nowrap text-slate-600">{{ loop.index }}</td>
+          <td class="py-2.5 px-5 font-semibold text-slate-900">{{ r.kabupaten }}</td>
+          <td class="py-2.5 px-5 whitespace-nowrap text-right text-slate-800">{{ r.jumlah_siswa }}</td>
+          <td class="py-2.5 px-5 whitespace-nowrap text-right font-semibold text-teal-950">{{ r.total_dana | rupiah }}</td>
+        </tr>
+        {% endfor %}
+        <tr class="bg-amber-50/95 font-bold border-t-2 border-amber-300 text-amber-950 print:bg-slate-100 print:border-slate-400 print:text-slate-900">
+          <td colspan="2" class="py-3 px-5 text-right uppercase text-xs tracking-wider">TOTAL KESELURUHAN</td>
+          <td class="py-3 px-5 text-right">{{ data_bank | length }}</td>
+          <td class="py-3 px-5 text-right">{{ total_dana_bank | rupiah }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  <!-- Tabel Format Bank: NO | NOMOR REKENING | NAMA PENERIMA | JUMLAH DANA -->
+  <div style="box-shadow: 0 16px 32px -8px rgba(3, 105, 161, 0.25), 0 8px 16px -6px rgba(14, 165, 233, 0.16);"
+       class="bg-white rounded-xl border border-sky-300 border-l-4 border-l-sky-600 overflow-x-auto print:border-slate-300 print:border-l-0 print:shadow-none">
+    <div id="infoHeaderBank" class="px-5 py-3.5 border-b border-sky-200/80 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 print:border-slate-300">
+      <div class="space-y-1">
+        <h2 class="text-sm font-bold text-sky-950 print:text-slate-900">Daftar Format Bank</h2>
+        {% if kab_terpilih %}
+        <p id="teksWilayahBank" class="text-xs text-slate-700">
+          Wilayah: <strong class="text-slate-900">{{ kab_terpilih | join(', ') }}</strong>
+          {% if tahun_filter %} · Tahun Ajaran: <strong class="text-slate-900">{{ tahun_filter }}</strong>{% endif %}
+          · Semester: <strong class="text-slate-900">{{ semester_filter if semester_filter else 'Semua SEMESTER' }}</strong>
+        </p>
+        {% endif %}
+        {% if data_bank %}
+        <p id="teksRingkasanAngkaBank" class="text-xs font-bold text-amber-950 print:text-slate-900">
+          {{ data_bank | length }} Rekening · Total: Rp {{ total_dana_bank | rupiah }}
+        </p>
+        {% endif %}
+      </div>
+
+      {% if data_bank %}
+      <div style="box-shadow: 0 5px 12px -3px rgba(180, 83, 9, 0.18);"
+           class="bg-amber-50 border border-amber-300 rounded-lg px-3.5 py-1.5 text-xs font-bold text-amber-950 shrink-0 print:bg-white print:border-slate-400">
+        {{ data_bank | length }} Rekening · Total: Rp {{ total_dana_bank | rupiah }}
+      </div>
+      {% endif %}
+    </div>
+
+    <table id="tabelFormatBank" class="w-full text-left border-collapse text-sm">
+      <thead>
+        <tr class="border-b border-sky-800 bg-sky-700 text-xs font-bold uppercase tracking-wider text-white print:bg-slate-800">
+          <th class="py-3.5 px-5 whitespace-nowrap w-16">NO</th>
+          <th class="py-3.5 px-5 whitespace-nowrap">NOMOR REKENING</th>
+          <th class="py-3.5 px-5">NAMA PENERIMA</th>
+          <th class="py-3.5 px-5 whitespace-nowrap text-right">JUMLAH DANA</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-200 bg-white">
+        {% if data_bank %}
+          {% for item in data_bank %}
+          {% set nama_bersih = nama_siswa_saja(item.nama_penerima) %}
+          <tr class="hover:bg-sky-50/70">
+            <td class="py-3.5 px-5 whitespace-nowrap text-slate-600">{{ item.no }}</td>
+            <td class="py-3.5 px-5 whitespace-nowrap font-mono text-slate-800">{{ item.nomor_rekening }}</td>
+            <td class="py-3.5 px-5 font-medium text-slate-900">{{ nama_bersih }}</td>
+            <td class="py-3.5 px-5 whitespace-nowrap text-right font-semibold text-sky-950">{{ item.jumlah_dana | rupiah }}</td>
+          </tr>
+          {% endfor %}
+          <tr class="bg-amber-50/95 font-bold border-t-2 border-amber-300 text-amber-950 print:bg-slate-100 print:border-slate-400 print:text-slate-900">
+            <td colspan="3" class="py-3.5 px-5 text-right uppercase text-xs tracking-wider">TOTAL JUMLAH DANA</td>
+            <td class="py-3.5 px-5 text-right">{{ total_dana_bank | rupiah }}</td>
+          </tr>
+        {% else %}
+          <tr>
+            <td colspan="4" class="py-10 px-5 text-center text-slate-500">
+              {% if sudah_tampilkan %}
+                Belum ada data yang tampil untuk pilihan tersebut.
+              {% else %}
+                Pilih satu atau beberapa KABUPATEN/KOTA dan SEMESTER di atas, lalu tekan <strong>TAMPILKAN BANK</strong>.
+              {% endif %}
+            </td>
+          </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+  (function () {
+    const btnPilihSemua = document.getElementById("btnPilihSemuaBank");
+    const btnBersihkan = document.getElementById("btnBersihkanBank");
+    const chkList = document.querySelectorAll(".chk-kab-bank");
+    const formBank = document.getElementById("formFormatBank");
+    const btnSalin = document.getElementById("btnSalinTabel");
+    const btnExportExcel = document.getElementById("btnExportExcelBank");
+    const tabelBank = document.getElementById("tabelFormatBank");
+    const teksWilayahBank = document.getElementById("teksWilayahBank");
+    const teksRingkasanAngkaBank = document.getElementById("teksRingkasanAngkaBank");
+
+    if (btnPilihSemua) {
+      btnPilihSemua.addEventListener("click", function () {
+        chkList.forEach(function (chk) { chk.checked = true; });
+      });
+    }
+    if (btnBersihkan) {
+      btnBersihkan.addEventListener("click", function () {
+        chkList.forEach(function (chk) { chk.checked = false; });
+      });
+    }
+    if (formBank) {
+      formBank.addEventListener("submit", function (e) {
+        const ada = Array.from(chkList).some(function (chk) { return chk.checked; });
+        if (!ada) {
+          e.preventDefault();
+          alert("Silakan pilih minimal satu KABUPATEN/KOTA terlebih dahulu.");
+        }
+      });
+    }
+
+    function escapeHtml(teks) {
+      return String(teks || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    function bangunBarisRingkasanExcel() {
+      const infoBaris = [];
+      if (teksWilayahBank && (teksWilayahBank.innerText || "").trim()) {
+        infoBaris.push(
+          `<tr><td colspan="4" style="font-weight:bold;">${escapeHtml(teksWilayahBank.innerText.trim())}</td></tr>`
+        );
+      }
+      if (teksRingkasanAngkaBank && (teksRingkasanAngkaBank.innerText || "").trim()) {
+        infoBaris.push(
+          `<tr><td colspan="4" style="font-weight:bold;">${escapeHtml(teksRingkasanAngkaBank.innerText.trim())}</td></tr>`
+        );
+      }
+      if (infoBaris.length > 0) {
+        infoBaris.push(`<tr><td colspan="4"></td></tr>`);
+      }
+      return infoBaris.join("");
+    }
+
+    function bangunHtmlExcelBank() {
+      const trList = Array.from(tabelBank.querySelectorAll("tr"));
+      const rowsHtml = trList.map(function (tr) {
+        const cells = Array.from(tr.querySelectorAll("th, td"));
+        const tds = cells.map(function (sel, colIdx) {
+          const tag = sel.tagName.toLowerCase();
+          const teks = (sel.innerText || "").trim();
+          const colspanAttr = sel.hasAttribute("colspan") ? ` colspan="${sel.getAttribute("colspan")}"` : "";
+          const styleRekening = (tag === "td" && colIdx === 1) ? ` style="mso-number-format:'\\@';"` : "";
+          return `<${tag}${colspanAttr}${styleRekening}>${escapeHtml(teks)}</${tag}>`;
+        }).join("");
+        return `<tr>${tds}</tr>`;
+      }).join("");
+
+      const prefixRingkasan = bangunBarisRingkasanExcel();
+
+      return `
+        <html xmlns:o="urn:schemas-microsoft-com:office:office"
+              xmlns:x="urn:schemas-microsoft-com:office:excel"
+              xmlns="http://www.w3.org/TR/REC-html40">
+        <head><meta charset="UTF-8" /></head>
+        <body><table border="1">${prefixRingkasan}${rowsHtml}</table></body>
+        </html>`;
+    }
+
+    if (btnSalin && tabelBank) {
+      btnSalin.addEventListener("click", function () {
+        const baris = Array.from(tabelBank.querySelectorAll("tr"));
+        const teksTsv = baris
+          .map(function (tr) {
+            return Array.from(tr.querySelectorAll("th, td"))
+              .map(function (sel) { return (sel.innerText || "").trim(); })
+              .join("\t");
+          })
+          .join("\n");
+
+        const htmlExcel = bangunHtmlExcelBank();
+
+        if (navigator.clipboard && window.ClipboardItem) {
+          const item = new ClipboardItem({
+            "text/html": new Blob([htmlExcel], { type: "text/html" }),
+            "text/plain": new Blob([teksTsv], { type: "text/plain" }),
+          });
+          navigator.clipboard.write([item]).then(function () {
+            alert("Tabel Format Bank berhasil disalin (nomor rekening terjaga format teks saat ditempel ke Excel).");
+          }).catch(function () {
+            navigator.clipboard.writeText(teksTsv).then(function () {
+              alert("Tabel Format Bank berhasil disalin ke clipboard.");
+            });
+          });
+        } else if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(teksTsv).then(function () {
+            alert("Tabel Format Bank berhasil disalin ke clipboard.");
+          });
+        }
+      });
+    }
+
+    if (btnExportExcel && tabelBank) {
+      btnExportExcel.addEventListener("click", function () {
+        const htmlExcel = bangunHtmlExcelBank();
+        const blob = new Blob(["\ufeff" + htmlExcel], {
+          type: "application/vnd.ms-excel;charset=utf-8;",
+        });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = "format_bank.xls";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      });
+    }
+  })();
+</script>
+{% endblock %}

@@ -1,0 +1,429 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - SISTEM INFORMASI REKAPITULASI BANTUAN PENDIDIKAN/BEASISWA ANAK NELAYAN ACEH{% endblock %}
+
+{% block content %}
+{% set jumlah_aktif_tampil = daftar_aktif | selectattr('status_data', 'equalto', 'AKTIF') | list | length %}
+{% set jumlah_arsip_tampil = daftar_aktif | selectattr('status_data', 'equalto', 'ARSIP') | list | length %}
+
+<style>
+  .panel-interaktif {
+    transition: transform 200ms ease, box-shadow 200ms ease, border-color 200ms ease;
+    box-shadow: 0 12px 24px -8px rgba(15, 23, 42, 0.14), 0 4px 10px -4px rgba(3, 105, 161, 0.12);
+  }
+
+  .panel-interaktif:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 18px 32px -8px rgba(3, 105, 161, 0.24), 0 8px 16px -4px rgba(15, 23, 42, 0.16);
+  }
+
+  .kontrol-interaktif {
+    transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease, background-color 180ms ease;
+    box-shadow: 0 6px 14px -4px rgba(15, 23, 42, 0.12), 0 2px 6px -2px rgba(13, 148, 136, 0.14);
+  }
+
+  .kontrol-interaktif:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 20px -6px rgba(13, 148, 136, 0.28), 0 4px 10px -3px rgba(15, 23, 42, 0.14);
+  }
+
+  @media print {
+    .panel-interaktif,
+    .panel-interaktif:hover,
+    .kontrol-interaktif,
+    .kontrol-interaktif:hover {
+      transform: none !important;
+      box-shadow: none !important;
+    }
+  }
+</style>
+
+<div class="space-y-4">
+  <!-- Header & Filter Dashboard -->
+  <div style="box-shadow: 0 14px 28px -8px rgba(13, 148, 136, 0.22), 0 6px 14px -4px rgba(3, 105, 161, 0.14);"
+       class="panel-interaktif bg-white rounded-xl border border-teal-300 border-l-4 border-l-teal-600 p-4 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+    <div>
+      <span class="inline-block text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-teal-100 text-teal-900 border border-teal-200 mb-1">
+        Rekapitulasi Keseluruhan &bull; Data Aktif &amp; Data Arsip
+      </span>
+      <h1 class="text-xl sm:text-2xl font-bold text-slate-900">Dashboard Rekapitulasi</h1>
+      <p class="text-xs sm:text-sm text-slate-600">
+        Menampilkan keseluruhan data bantuan pendidikan/beasiswa sepanjang berjalan (<strong>Data Aktif</strong> dan <strong>Data Arsip</strong>) dengan penanda status yang jelas.
+      </p>
+    </div>
+
+    <!-- Filter Tahun & Kabupaten (Interaktif Bayangan + Gerak) -->
+    <form method="get" action="{{ url_for('dashboard') }}" class="flex flex-wrap items-end gap-2.5 shrink-0">
+      <div class="kontrol-interaktif rounded-lg bg-teal-50/70 border border-teal-200 p-1.5">
+        <label for="tahun" class="block text-[10px] font-bold uppercase text-teal-900 mb-1 px-0.5">Tahun Ajaran</label>
+        <select id="tahun" name="tahun"
+                class="kontrol-interaktif rounded-md border border-teal-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-800 cursor-pointer focus:outline-none focus:ring-2 focus:ring-teal-400">
+          <option value="">Semua Tahun</option>
+          {% for thn in daftar_tahun %}
+            <option value="{{ thn }}" {% if tahun_dipilih == thn %}selected{% endif %}>{{ thn }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="kontrol-interaktif rounded-lg bg-sky-50/70 border border-sky-200 p-1.5">
+        <label for="kab" class="block text-[10px] font-bold uppercase text-sky-900 mb-1 px-0.5">Kabupaten / Kota</label>
+        <select id="kab" name="kab"
+                class="kontrol-interaktif rounded-md border border-sky-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-800 cursor-pointer focus:outline-none focus:ring-2 focus:ring-sky-400">
+          <option value="SEMUA">Semua (18 Kab/Kota)</option>
+          {% for t in tombol_kabupaten %}
+            <option value="{{ t.kabupaten }}" {% if kab_dipilih == t.kabupaten %}selected{% endif %}>
+              {{ t.kabupaten }} ({{ t.jumlah_penerima }})
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <button type="submit"
+              class="px-3.5 py-2 rounded-lg bg-teal-700 hover:bg-teal-800 text-white text-xs font-bold cursor-pointer">
+        Terapkan
+      </button>
+      <a href="{{ url_for('dashboard') }}"
+         class="kontrol-interaktif px-3 py-2 rounded-lg border border-slate-300 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold">
+        Reset
+      </a>
+    </form>
+  </div>
+
+  <!-- Flash Message -->
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <div class="space-y-2">
+        {% for category, message in messages %}
+          <div class="panel-interaktif rounded-xl px-4 py-2.5 text-xs sm:text-sm font-medium border
+            {% if category == 'success' %}
+              bg-emerald-50 text-emerald-950 border-emerald-300
+            {% elif category == 'error' or category == 'warning' %}
+              bg-rose-50 text-rose-950 border-rose-300
+            {% else %}
+              bg-sky-50 text-sky-950 border-sky-300
+            {% endif %}">
+            {{ message }}
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
+
+  <!-- Kartu Ringkasan Utama: Total, Aktif, Arsip, Dana -->
+  <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3.5">
+    <div class="panel-interaktif bg-white rounded-xl border border-teal-300 p-4">
+      <div class="text-[11px] font-bold uppercase tracking-wide text-teal-800">Total Penerima (Tampil)</div>
+      <div class="text-2xl font-extrabold text-slate-900 mt-1">{{ total_penerima }} <span class="text-xs font-semibold text-slate-500">orang</span></div>
+      <div class="text-[11px] text-slate-600 mt-1">
+        Kabupaten aktif: <strong>{{ jumlah_kab_aktif }}</strong> / {{ total_kab_sistem }}
+      </div>
+    </div>
+
+    <div class="panel-interaktif bg-white rounded-xl border border-emerald-300 p-4">
+      <div class="flex items-center justify-between gap-2">
+        <span class="text-[11px] font-bold uppercase tracking-wide text-emerald-800">Status: AKTIF</span>
+        <span class="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-300">
+          AKTIF
+        </span>
+      </div>
+      <div class="text-2xl font-extrabold text-emerald-950 mt-1">
+        {{ jumlah_aktif_tampil }} <span class="text-xs font-semibold text-emerald-700">data tampil</span>
+      </div>
+      <div class="text-[11px] text-slate-600 mt-1">
+        Total seluruh data aktif: <strong>{{ total_aktif_saja | default(jumlah_aktif_tampil) }}</strong>
+      </div>
+    </div>
+
+    <div class="panel-interaktif bg-white rounded-xl border border-violet-300 p-4">
+      <div class="flex items-center justify-between gap-2">
+        <span class="text-[11px] font-bold uppercase tracking-wide text-violet-800">Status: ARSIP</span>
+        <span class="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-violet-100 text-violet-900 border border-violet-300">
+          ARSIP
+        </span>
+      </div>
+      <div class="text-2xl font-extrabold text-violet-950 mt-1">
+        {{ jumlah_arsip_tampil }} <span class="text-xs font-semibold text-violet-700">data tampil</span>
+      </div>
+      <div class="text-[11px] text-slate-600 mt-1">
+        Total seluruh data arsip: <strong>{{ total_arsip_saja | default(jumlah_arsip_tampil) }}</strong>
+      </div>
+    </div>
+
+    <div class="panel-interaktif bg-white rounded-xl border border-amber-300 p-4">
+      <div class="text-[11px] font-bold uppercase tracking-wide text-amber-800">Total Dana (Tampil)</div>
+      <div class="text-xl sm:text-2xl font-extrabold text-amber-950 mt-1">{{ total_dana | rupiah }}</div>
+      <div class="text-[11px] text-slate-600 mt-1">
+        Gabungan data Aktif &amp; Arsip sesuai filter
+      </div>
+    </div>
+  </div>
+
+  <!-- Warna Khas A: Rekapitulasi per Jenjang Pendidikan (Nuansa Biru Langit / Sky) -->
+  <div class="panel-interaktif bg-sky-50/60 rounded-xl border-2 border-sky-300 overflow-hidden">
+    <div class="px-4 py-2.5 bg-sky-100 border-b border-sky-300 flex items-center justify-between gap-2">
+      <span class="font-bold text-xs sm:text-sm text-sky-950">
+        Rekapitulasi per Jenjang Pendidikan (Aktif + Arsip)
+      </span>
+      <span class="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-sky-200/80 text-sky-950 border border-sky-300">
+        Per Jenjang
+      </span>
+    </div>
+    <div class="grid grid-cols-2 lg:grid-cols-4 divide-y lg:divide-y-0 lg:divide-x divide-sky-200 bg-white/85">
+      {% for j in data_jenjang %}
+        <div class="p-3.5 hover:bg-sky-50 transition-colors">
+          <div class="text-[11px] font-extrabold uppercase text-sky-900">{{ j.jenjang }}</div>
+          <div class="text-lg font-extrabold text-slate-900 mt-0.5">
+            {{ j.jumlah_penerima }} <span class="text-xs font-semibold text-slate-500">penerima</span>
+          </div>
+          <div class="text-xs font-bold text-sky-800 mt-0.5">{{ j.total_dana | rupiah }}</div>
+          <div class="text-[10px] text-slate-500 mt-0.5">Tarif dasar: {{ j.nominal | rupiah }}</div>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Warna Khas B: Rekapitulasi per Kabupaten / Kota (Nuansa Hijau Zamrud / Emerald) -->
+  <div class="panel-interaktif bg-emerald-50/50 rounded-xl border-2 border-emerald-300 overflow-hidden">
+    <div class="px-4 py-2.5 bg-emerald-100 border-b border-emerald-300 flex items-center justify-between gap-2">
+      <div class="flex items-center gap-2">
+        <span class="font-bold text-xs sm:text-sm text-emerald-950">Rekapitulasi per Kabupaten / Kota</span>
+        <span class="text-[11px] text-emerald-900 font-semibold hidden sm:inline">({{ rekap_kabupaten | length }} wilayah tercatat)</span>
+      </div>
+      <button type="button"
+              onclick="toggleTabel('panel-rekap-kab', this)"
+              class="px-2.5 py-1 rounded-md border border-emerald-300 bg-white hover:bg-emerald-50 text-emerald-950 text-[11px] font-bold cursor-pointer">
+        Sembunyikan
+      </button>
+    </div>
+
+    <div id="panel-rekap-kab" class="overflow-x-auto bg-white">
+      <table class="w-full text-left border-collapse text-xs">
+        <thead>
+          <tr class="bg-emerald-50/80 text-emerald-950 border-b border-emerald-200 uppercase text-[11px]">
+            <th class="py-2 px-3">No</th>
+            <th class="py-2 px-3 min-w-[190px]">Kabupaten / Kota</th>
+            <th class="py-2 px-3 text-right">Penerima</th>
+            <th class="py-2 px-3 text-right">2 Semester (1 + 2)</th>
+            <th class="py-2 px-3 text-right">1 Semester</th>
+            <th class="py-2 px-3 text-right">Total Dana</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-emerald-100">
+          {% for k in rekap_kabupaten %}
+            <tr class="hover:bg-emerald-50/60">
+              <td class="py-2 px-3 text-slate-600 font-semibold">{{ loop.index }}</td>
+              <td class="py-2 px-3 min-w-[190px] font-bold text-slate-900">{{ k.kabupaten }}</td>
+              <td class="py-2 px-3 text-right font-semibold">{{ k.jumlah_penerima }}</td>
+              <td class="py-2 px-3 text-right text-emerald-800 font-semibold">{{ k.sudah_penuh }}</td>
+              <td class="py-2 px-3 text-right text-amber-800 font-semibold">{{ k.belum_penuh }}</td>
+              <td class="py-2 px-3 text-right font-bold text-emerald-950">{{ k.total_dana | rupiah }}</td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="6" class="py-6 px-4 text-center text-slate-500">
+                Belum ada data rekapitulasi yang tampil.
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Daftar Keseluruhan Data (Aktif & Arsip dengan Label Penanda) -->
+  <div class="panel-interaktif bg-white rounded-xl border border-slate-300 overflow-hidden">
+    <div class="px-4 py-3 bg-slate-100 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
+      <div>
+        <h2 class="font-bold text-xs sm:text-sm text-slate-900">
+          Daftar Keseluruhan Data Penerima (Aktif &amp; Arsip)
+        </h2>
+        <p class="text-[11px] text-slate-600">
+          Badge <span class="font-bold text-emerald-800">AKTIF</span> menandakan data berjalan di operasional; badge <span class="font-bold text-violet-800">ARSIP</span> menandakan data historis terkunci.
+        </p>
+      </div>
+      <div class="flex items-center gap-2 text-[11px] font-bold">
+        <span class="px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-300">
+          AKTIF: {{ jumlah_aktif_tampil }}
+        </span>
+        <span class="px-2.5 py-1 rounded-full bg-violet-100 text-violet-900 border border-violet-300">
+          ARSIP: {{ jumlah_arsip_tampil }}
+        </span>
+        <button type="button"
+                onclick="toggleTabel('panel-daftar-semua', this)"
+                class="px-2.5 py-1 rounded-md border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-[11px] font-bold cursor-pointer">
+          Sembunyikan
+        </button>
+      </div>
+    </div>
+
+    <div id="panel-daftar-semua" class="overflow-x-auto">
+      <table class="w-full text-left border-collapse text-xs">
+        <thead>
+          <tr class="bg-slate-50 text-slate-700 border-b border-slate-200 uppercase text-[11px]">
+            <th class="py-2.5 px-3">No</th>
+            <th class="py-2.5 px-3">Status</th>
+            <th class="py-2.5 px-3">Tahun</th>
+            <th class="py-2.5 px-3">Semester</th>
+            <th class="py-2.5 px-3 min-w-[190px]">Kabupaten / Kota</th>
+            <th class="py-2.5 px-3 min-w-[200px]">Lhok</th>
+            <th class="py-2.5 px-3 min-w-[270px]">Nama Penerima</th>
+            <th class="py-2.5 px-3">Jenjang</th>
+            <th class="py-2.5 px-3 text-right">Jumlah Dana</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-200">
+          {% for baris in daftar_aktif %}
+            {% set is_arsip = (baris.status_data == 'ARSIP') %}
+            <tr class="{% if is_arsip %}bg-violet-50/45 hover:bg-violet-50{% else %}hover:bg-emerald-50/35{% endif %}">
+              <td class="py-2 px-3 text-slate-600 font-semibold">{{ loop.index }}</td>
+              <td class="py-2 px-3 whitespace-nowrap">
+                {% if is_arsip %}
+                  <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wide bg-violet-100 text-violet-900 border border-violet-300">
+                    ARSIP
+                  </span>
+                {% else %}
+                  <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wide bg-emerald-100 text-emerald-900 border border-emerald-300">
+                    AKTIF
+                  </span>
+                {% endif %}
+              </td>
+              <td class="py-2 px-3 font-medium">{{ baris.tahun or '-' }}</td>
+              <td class="py-2 px-3">{{ baris.semester or '-' }}</td>
+              <td class="py-2 px-3 min-w-[190px] font-semibold text-slate-800">{{ baris.kabupaten_kota or '-' }}</td>
+              <td class="py-2 px-3 min-w-[200px]">{{ baris.lhok or '-' }}</td>
+              <td class="py-2 px-3 min-w-[270px] font-bold text-slate-900">{{ baris.nama_penerima or '-' }}</td>
+              <td class="py-2 px-3 whitespace-nowrap">
+                {% if baris.strata_pendidikan %}
+                  <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-100 text-sky-900 border border-sky-200">
+                    {{ baris.strata_pendidikan }}
+                  </span>
+                {% else %}
+                  <span class="text-slate-400">-</span>
+                {% endif %}
+              </td>
+              <td class="py-2 px-3 text-right font-bold text-slate-900">
+                {{ baris.jumlah_dana | rupiah }}
+              </td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="9" class="py-8 px-4 text-center text-slate-500">
+                Belum ada data penerima yang tercatat di sistem.
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Tabel 3 (Di Bagian Bawah): Pendeteksi Penerima Berulang -->
+  <div class="panel-interaktif bg-white rounded-xl border border-amber-300 overflow-hidden">
+    <div class="px-4 py-3 bg-amber-50 border-b border-amber-200 flex flex-wrap items-center justify-between gap-2">
+      <div>
+        <h2 class="font-bold text-xs sm:text-sm text-amber-950">
+          Pendeteksi Penerima Berulang
+        </h2>
+        <p class="text-[11px] text-amber-900/80">
+          Menampilkan nama penerima yang muncul lebih dari 1 kali pada data yang sedang tampil (baik lintas tahun ajaran maupun pada periode yang sama).
+        </p>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-amber-200/80 text-amber-950 border border-amber-300">
+          {{ penerima_berulang | length }} Nama Berulang
+        </span>
+        <button type="button"
+                onclick="toggleTabel('panel-penerima-berulang', this)"
+                class="px-2.5 py-1 rounded-md border border-amber-300 bg-white hover:bg-amber-100/60 text-amber-950 text-[11px] font-bold cursor-pointer">
+          Sembunyikan
+        </button>
+      </div>
+    </div>
+
+    <div id="panel-penerima-berulang" class="overflow-x-auto">
+      <table class="w-full text-left border-collapse text-xs">
+        <thead>
+          <tr class="bg-slate-50 text-slate-700 border-b border-slate-200 uppercase text-[11px]">
+            <th class="py-2 px-3">No</th>
+            <th class="py-2 px-3 min-w-[270px]">Nama Penerima</th>
+            <th class="py-2 px-3 text-center">Frekuensi</th>
+            <th class="py-2 px-3">Keterangan</th>
+            <th class="py-2 px-3 min-w-[220px]">Tahun &amp; Jenjang</th>
+            <th class="py-2 px-3 min-w-[210px]">Kabupaten / Lhok</th>
+            <th class="py-2 px-3">Alamat</th>
+            <th class="py-2 px-3 text-right">Akumulasi Dana</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-200">
+          {% for item in penerima_berulang %}
+            <tr class="hover:bg-amber-50/40">
+              <td class="py-2 px-3 text-slate-600 font-semibold">{{ loop.index }}</td>
+              <td class="py-2 px-3 min-w-[270px] font-bold text-slate-900">{{ item.nama }}</td>
+              <td class="py-2 px-3 text-center">
+                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-extrabold bg-amber-100 text-amber-950 border border-amber-300">
+                  {{ item.jumlah_kemunculan }}x
+                </span>
+              </td>
+              <td class="py-2 px-3 whitespace-nowrap">
+                {% if item.lintas_tahun %}
+                  <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-100 text-sky-900 border border-sky-200">
+                    Lintas Tahun
+                  </span>
+                {% else %}
+                  <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-900 border border-rose-200">
+                    Tahun Sama
+                  </span>
+                {% endif %}
+              </td>
+              <td class="py-2 px-3 min-w-[220px]">
+                {% if item.riwayat_tahun_jenjang %}
+                  <div class="flex flex-col gap-1">
+                    {% for pasang in item.riwayat_tahun_jenjang %}
+                      <span class="inline-flex items-center w-fit px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-100 text-sky-900 border border-sky-200">
+                        {{ pasang }}
+                      </span>
+                    {% endfor %}
+                  </div>
+                {% elif item.daftar_tahun %}
+                  <div class="flex flex-col gap-1">
+                    {% for thn in item.daftar_tahun %}
+                      <span class="inline-flex items-center w-fit px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-100 text-sky-900 border border-sky-200">
+                        {{ thn }}{% if item.daftar_jenjang and item.daftar_jenjang[loop.index0] is defined %} - {{ item.daftar_jenjang[loop.index0] }}{% endif %}
+                      </span>
+                    {% endfor %}
+                  </div>
+                {% else %}
+                  <span class="text-slate-400">-</span>
+                {% endif %}
+              </td>
+              <td class="py-2 px-3 min-w-[210px]">
+                <div class="font-semibold text-slate-800">{{ item.daftar_kabupaten | join(', ') if item.daftar_kabupaten else '-' }}</div>
+                {% if item.daftar_lhok %}
+                  <div class="text-[11px] text-slate-500">{{ item.daftar_lhok | join(', ') }}</div>
+                {% endif %}
+              </td>
+              <td class="py-2 px-3 text-slate-600">{{ item.daftar_alamat | join(' / ') if item.daftar_alamat else '-' }}</td>
+              <td class="py-2 px-3 text-right font-bold text-slate-900">{{ item.total_dana | rupiah }}</td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="8" class="py-5 px-4 text-center text-slate-500">
+                Tidak ada penerima berulang yang terdeteksi pada filter data saat ini.
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+  function toggleTabel(panelId, tombol) {
+    const panel = document.getElementById(panelId);
+    if (!panel) return;
+    const tersembunyi = panel.classList.toggle("hidden");
+    tombol.textContent = tersembunyi ? "Tampilkan" : "Sembunyikan";
+  }
+</script>
+{% endblock %}

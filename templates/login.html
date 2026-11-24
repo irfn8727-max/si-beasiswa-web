@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Masuk - Sistem Informasi Rekapitulasi Bantuan Pendidikan/Beasiswa Anak Nelayan Aceh</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @keyframes munculLembut {
+      0% {
+        opacity: 0;
+        transform: translateY(14px) scale(0.985);
+      }
+      100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+
+    @keyframes latarLembut {
+      0% {
+        opacity: 0.72;
+        transform: scale(1.04);
+      }
+      100% {
+        opacity: 1;
+        transform: scale(1);
+      }
+    }
+
+    .bg-laut-awan-asli {
+      background-color: #38bdf8;
+      background-image: url("{{ url_for('static', filename='img/laut-awan.jpg') }}");
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
+      background-attachment: fixed;
+      position: relative;
+    }
+
+    .bg-laut-awan-asli::after {
+      content: "";
+      position: fixed;
+      inset: 0;
+      background-image: inherit;
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
+      animation: latarLembut 1100ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    .bg-laut-awan-asli::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      background: linear-gradient(180deg, rgba(56, 189, 248, 0.12) 0%, rgba(125, 211, 252, 0.08) 55%, rgba(2, 132, 199, 0.16) 100%);
+      z-index: 1;
+      pointer-events: none;
+    }
+
+    header, main {
+      position: relative;
+      z-index: 10;
+    }
+
+    .animasi-masuk-lembut {
+      opacity: 0;
+      animation: munculLembut 750ms cubic-bezier(0.22, 1, 0.36, 1) 80ms forwards;
+    }
+
+    .login-card {
+      border: 2px solid #38bdf8;
+      box-shadow: 0 0 0 3px rgba(125, 211, 252, 0.45), 0 16px 32px -8px rgba(7, 23, 38, 0.28), 0 6px 14px -4px rgba(2, 132, 199, 0.22);
+      transition: transform 220ms ease, box-shadow 220ms ease, border-color 220ms ease;
+    }
+
+    .login-card:hover {
+      transform: translateY(-4px);
+      border-color: #7dd3fc;
+      box-shadow: 0 0 0 4px rgba(125, 211, 252, 0.65), 0 24px 44px -10px rgba(7, 23, 38, 0.36), 0 10px 20px -6px rgba(14, 165, 233, 0.35);
+    }
+
+    .login-item {
+      box-shadow: 0 4px 10px -3px rgba(11, 34, 57, 0.14);
+      transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease, background-color 180ms ease;
+    }
+
+    .login-item:hover,
+    .login-item:focus-within {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 18px -4px rgba(2, 132, 199, 0.3), 0 4px 8px -3px rgba(15, 23, 42, 0.14);
+    }
+
+    .login-item:active {
+      transform: translateY(0px);
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .animasi-masuk-lembut,
+      .bg-laut-awan-asli::after {
+        animation: none !important;
+        opacity: 1 !important;
+        transform: none !important;
+      }
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col text-slate-800 bg-laut-awan-asli font-sans antialiased">
+  <!-- Header Atas -->
+  <header class="w-full shrink-0 text-white border-b border-slate-800 shadow-xs"
+          style="background: linear-gradient(90deg, #ffffff 0%, #e2e8f0 22%, #1d4e7a 56%, #0b2239 82%, #071726 100%);">
+    <div class="w-full px-3 sm:px-5 py-2 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+      <!-- Logo & Nama Instansi di Kiri -->
+      <div class="flex items-center gap-2.5 min-w-0">
+        {% if logo_instansi %}
+          <img src="{{ url_for('static', filename=logo_instansi) }}"
+               alt="Logo {{ nama_instansi }}"
+               class="h-8 sm:h-9 w-auto max-w-[84px] object-contain shrink-0 block" />
+        {% else %}
+          <div class="h-8 sm:h-9 px-2 flex items-center justify-center rounded border border-slate-300 bg-white/90 text-[10px] font-bold text-[#0b2239] shrink-0">
+            LOGO
+          </div>
+        {% endif %}
+
+        <div class="min-w-0">
+          <div class="text-xs sm:text-[13px] font-extrabold uppercase tracking-wide text-[#0b2239] leading-tight truncate">
+            {{ nama_instansi }}
+          </div>
+        </div>
+      </div>
+
+      <!-- Nama Aplikasi di Sebelah Kanan (2 Baris, Warna Kuning) -->
+      <div class="md:text-right shrink-0 leading-tight">
+        <div class="font-bold text-[11px] sm:text-[13px] text-amber-300 uppercase tracking-wide"
+             style="text-shadow: 0 1px 2px rgba(7, 23, 38, 0.85);">
+          SISTEM INFORMASI REKAPITULASI
+        </div>
+        <div class="font-bold text-[11px] sm:text-xs text-amber-300 uppercase tracking-wide"
+             style="text-shadow: 0 1px 2px rgba(7, 23, 38, 0.85);">
+          BANTUAN PENDIDIKAN/BEASISWA ANAK NELAYAN ACEH
+        </div>
+      </div>
+    </div>
+    <!-- Strip Garis Header Warna Biru Muda -->
+    <div class="h-1 w-full bg-sky-400"></div>
+  </header>
+
+  <!-- Area Tengah Halaman Login -->
+  <main class="flex-1 flex items-center justify-center p-4">
+    <div class="login-card animasi-masuk-lembut w-full max-w-md bg-white/95 backdrop-blur-xs rounded-2xl overflow-hidden">
+      <div class="px-6 pt-5 pb-4 bg-sky-50/95 border-b border-sky-200">
+        <div class="flex items-center justify-between gap-2 mb-2">
+          <span class="login-item inline-block text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-[#0b2239] text-amber-300 border border-sky-400 cursor-default">
+            Akses Operator
+          </span>
+          <span class="text-[11px] font-semibold text-sky-900/80">SI Beasiswa Anak Nelayan Aceh</span>
+        </div>
+        <h1 class="text-lg font-extrabold text-[#0b2239]">Masuk ke Sistem</h1>
+        <p class="text-xs text-slate-600 mt-0.5">
+          Silakan masukkan username dan password untuk mengelola data beasiswa.
+        </p>
+      </div>
+
+      <div class="p-6 space-y-4">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            <div class="space-y-2">
+              {% for category, message in messages %}
+                <div class="login-item rounded-lg border px-3.5 py-2.5 text-xs font-semibold
+                  {% if category == 'error' %}
+                    border-rose-300 bg-rose-50 text-rose-800
+                  {% elif category == 'success' %}
+                    border-emerald-300 bg-emerald-50 text-emerald-800
+                  {% else %}
+                    border-sky-300 bg-sky-50 text-sky-900
+                  {% endif %}">
+                  {{ message }}
+                </div>
+              {% endfor %}
+            </div>
+          {% endif %}
+        {% endwith %}
+
+        {% with next_url = request.args.get('next', url_for('dashboard')) %}
+          <form method="POST" action="{{ url_for('login', next=next_url) }}" class="space-y-3.5">
+            <div>
+              <label for="username" class="block text-xs font-bold text-slate-800 mb-1">
+                Username
+              </label>
+              <input type="text"
+                     id="username"
+                     name="username"
+                     required
+                     autofocus
+                     autocomplete="username"
+                     placeholder="Masukkan username"
+                     class="login-item w-full px-3.5 py-2 text-xs sm:text-sm rounded-lg border border-slate-300 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-400 focus:border-sky-500" />
+            </div>
+
+            <div>
+              <label for="password" class="block text-xs font-bold text-slate-800 mb-1">
+                Password
+              </label>
+              <input type="password"
+                     id="password"
+                     name="password"
+                     required
+                     autocomplete="current-password"
+                     placeholder="Masukkan password"
+                     class="login-item w-full px-3.5 py-2 text-xs sm:text-sm rounded-lg border border-slate-300 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-400 focus:border-sky-500" />
+            </div>
+
+            <button type="submit"
+                    class="login-item w-full py-2.5 px-4 text-xs sm:text-sm font-extrabold uppercase tracking-wide rounded-lg bg-[#0b2239] hover:bg-sky-900 text-amber-300 border border-sky-400/70 transition cursor-pointer mt-1">
+              MASUK SISTEM
+            </button>
+          </form>
+        {% endwith %}
+
+        <div class="login-item rounded-lg bg-sky-50/80 border border-sky-200/90 px-3 py-2 text-[11px] text-slate-600 flex items-center justify-between">
+          <span>Database PostgreSQL</span>
+          <span class="font-semibold text-sky-950">SI BANA v1.0</span>
+        </div>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

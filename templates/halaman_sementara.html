@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block title %}{{ judul }} - SI Beasiswa{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto space-y-5">
+  <div class="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+    <span class="inline-block text-xs font-medium px-2.5 py-1 rounded-full bg-teal-50 text-teal-700 mb-2">
+      Tahap Pengembangan
+    </span>
+    <h1 class="text-2xl font-bold text-slate-800">{{ judul }}</h1>
+    <p class="text-sm text-slate-500 mt-1">
+      Halaman <strong>{{ judul }}</strong> sudah terhubung dengan menu navigasi dan siap kita isi fitur lengkapnya secara bertahap.
+    </p>
+  </div>
+</div>
+{% endblock %}

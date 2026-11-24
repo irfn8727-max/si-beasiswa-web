@@ -1,0 +1,587 @@
+{% extends "base.html" %}
+
+{% block title %}Data Penerima - SISTEM INFORMASI REKAPITULASI BANTUAN PENDIDIKAN/BEASISWA ANAK NELAYAN ACEH{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto space-y-4">
+  <!-- Header Halaman Selaras Biru Langit -->
+  <div class="bg-white rounded-xl border border-sky-300 border-l-4 border-l-sky-700 p-4 shadow-[6px_8px_18px_-4px_rgba(3,105,161,0.22),-6px_8px_18px_-4px_rgba(14,165,233,0.14)] flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+    <div>
+      <span class="inline-block text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-sky-100 text-sky-900 border border-sky-200 mb-1">
+        Pendataan &amp; Validasi
+      </span>
+      <h1 class="text-lg sm:text-xl font-bold text-slate-900 leading-tight">Data Penerima Beasiswa</h1>
+      <p class="text-xs text-slate-600 mt-0.5">Input, cari, perbarui, dan audit data penerima bantuan pendidikan anak nelayan Aceh.</p>
+    </div>
+
+    <!-- Dua Kotak Ringkasan Biru Langit -->
+    <div class="flex flex-wrap gap-2.5 text-xs shrink-0">
+      <div class="bg-sky-100/80 hover:bg-sky-100 border border-sky-300 rounded-lg px-3.5 py-2 min-w-[120px] shadow-[4px_6px_14px_-4px_rgba(3,105,161,0.2),-4px_6px_14px_-4px_rgba(14,165,233,0.12)] hover:-translate-y-1 hover:shadow-xl transition duration-200 cursor-default">
+        <div class="text-sky-900 font-bold uppercase tracking-wide text-[10px]">Total Terdaftar</div>
+        <div class="text-base sm:text-lg font-bold text-slate-950 mt-0.5">{{ total_terdaftar | default(0) }}</div>
+      </div>
+      <div class="bg-sky-100/80 hover:bg-sky-100 border border-sky-300 rounded-lg px-3.5 py-2 min-w-[155px] shadow-[4px_6px_14px_-4px_rgba(3,105,161,0.2),-4px_6px_14px_-4px_rgba(14,165,233,0.12)] hover:-translate-y-1 hover:shadow-xl transition duration-200 cursor-default">
+        <div class="text-sky-900 font-bold uppercase tracking-wide text-[10px]">Total Dana</div>
+        <div class="text-base sm:text-lg font-bold text-sky-950 mt-0.5">Rp {{ (total_dana | default(0)) | rupiah }}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pesan Flash (Blokir Duplikasi / Konfirmasi Simpan) -->
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <div class="space-y-2">
+        {% for category, message in messages %}
+          <div class="rounded-lg px-3.5 py-2.5 text-xs font-medium border shadow-[4px_6px_14px_-4px_rgba(3,105,161,0.18),-4px_6px_14px_-4px_rgba(14,165,233,0.12)]
+            {% if category == 'success' %}
+              bg-emerald-50 text-emerald-950 border-emerald-300
+            {% elif category == 'warning' %}
+              bg-rose-50 text-rose-950 border-rose-300
+            {% else %}
+              bg-sky-50 text-sky-950 border-sky-300
+            {% endif %}">
+            {{ message }}
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
+
+  <!-- Deteksi Penerima Ganda per Tahun Ajaran -->
+  {% if temuan_ganda %}
+  <div class="bg-amber-50/95 border border-amber-300 border-l-4 border-l-amber-500 rounded-xl p-3.5 shadow-[6px_8px_18px_-4px_rgba(3,105,161,0.18),-6px_8px_18px_-4px_rgba(180,83,9,0.14)] space-y-2">
+    <div class="flex items-center justify-between gap-2">
+      <h2 class="text-xs sm:text-sm font-bold text-amber-950">
+        Deteksi Penerima Ganda per Tahun Ajaran ({{ temuan_ganda | length }} Nama Terindikasi)
+      </h2>
+      <span class="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-amber-200 text-amber-950 border border-amber-300">
+        Perlu Audit
+      </span>
+    </div>
+    <p class="text-[11px] text-amber-950/90">
+      Nama dan orang tua/identitas yang sama muncul lebih dari sekali pada tahun ajaran yang sama:
+    </p>
+    <div class="overflow-x-auto rounded-lg border border-amber-300 bg-white shadow-[6px_8px_18px_-4px_rgba(180,83,9,0.2),-6px_8px_18px_-4px_rgba(217,119,6,0.14)]">
+      <table class="w-full text-left border-collapse text-xs">
+        <thead>
+          <tr class="bg-amber-600 text-white border-b border-amber-700 uppercase text-[10px] font-bold">
+            <th class="py-1.5 px-2.5">Tahun Ajaran</th>
+            <th class="py-1.5 px-2.5 min-w-[200px]">Nama Penerima</th>
+            <th class="py-1.5 px-2.5 text-center">Jumlah Muncul</th>
+            <th class="py-1.5 px-2.5">Rincian Lokasi &amp; Semester</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-200">
+          {% for item in temuan_ganda %}
+          <tr class="hover:bg-amber-50/60">
+            <td class="py-1.5 px-2.5 font-semibold text-slate-800 whitespace-nowrap">{{ item.tahun }}</td>
+            <td class="py-1.5 px-2.5 font-bold text-rose-700">{{ item.nama }}</td>
+            <td class="py-1.5 px-2.5 text-center font-bold text-amber-950">{{ item.jumlah }}x</td>
+            <td class="py-1.5 px-2.5 text-slate-700">
+              {% for b in item.baris %}
+                <span class="inline-block bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5 mr-1 mb-0.5 text-[11px]">
+                  #{{ b.no }} {{ b.kabupaten or '-' }}{% if b.lhok %} · {{ b.lhok }}{% endif %} ({{ b.semester or '-' }}) - {{ b.jumlah_dana | rupiah }}
+                </span>
+              {% endfor %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Form Input Penerima Baru (Melayang) -->
+  <div style="box-shadow: 0 18px 34px -8px rgba(3, 105, 161, 0.28), 0 8px 16px -6px rgba(14, 165, 233, 0.18), 0 0 0 1px rgba(125, 211, 252, 0.55);"
+       class="bg-white rounded-xl border border-sky-300/90 p-4 hover:-translate-y-0.5 transition duration-200 space-y-3">
+    <div class="flex items-center justify-between border-b border-sky-200/80 pb-2.5">
+      <div>
+        <h2 class="text-sm font-bold text-sky-950">Tambah Data Penerima Baru</h2>
+        <p class="text-[11px] text-slate-600">Memilih Tahun Ajaran atau Kabupaten/Kota akan menyaring tabel di bawah sesuai pilihan aktif, dan nama ganda pada tahun ajaran yang sama otomatis diblokir.</p>
+      </div>
+    </div>
+
+    <form method="post" action="{{ url_for('penerima') }}" class="space-y-3">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div>
+          <label for="tahun" class="block text-[11px] font-bold text-sky-950 mb-1">Tahun Ajaran</label>
+          <select id="tahun" name="tahun" onchange="sinkronFilterFormKeTabel()"
+                  style="box-shadow: 0 5px 12px -2px rgba(3, 105, 161, 0.2), 0 1px 3px rgba(15, 23, 42, 0.06);"
+                  class="w-full rounded-lg border border-sky-300 bg-sky-50/70 px-2.5 py-1.5 text-xs text-slate-800 hover:-translate-y-0.5 hover:shadow-lg focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 transition duration-200 cursor-pointer">
+            <option value="">Semua Tahun Ajaran</option>
+            {% for thn in range(2005, 2051) %}
+              {% set label_ta = thn ~ '/' ~ (thn + 1) %}
+              <option value="{{ label_ta }}">{{ label_ta }}</option>
+            {% endfor %}
+            {% set daftar_standar = [] %}
+            {% for thn in range(2005, 2051) %}
+              {% set _ = daftar_standar.append(thn ~ '/' ~ (thn + 1)) %}
+            {% endfor %}
+            {% for b in daftar_penerima %}
+              {% set ta_ada = (b.tahun or '') | trim %}
+              {% if ta_ada and ta_ada not in daftar_standar %}
+                <option value="{{ ta_ada }}">{{ ta_ada }}</option>
+              {% endif %}
+            {% endfor %}
+          </select>
+        </div>
+
+        <div>
+          <label for="semester" class="block text-[11px] font-bold text-sky-950 mb-1">Semester</label>
+          <select id="semester" name="semester" onchange="hitungPreviewDana()"
+                  style="box-shadow: 0 5px 12px -2px rgba(3, 105, 161, 0.2), 0 1px 3px rgba(15, 23, 42, 0.06);"
+                  class="w-full rounded-lg border border-sky-300 bg-sky-50/70 px-2.5 py-1.5 text-xs text-slate-800 hover:-translate-y-0.5 hover:shadow-lg focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 transition duration-200 cursor-pointer">
+            <option value="">-- Pilih Semester --</option>
+            <option value="1 GANJIL">1 GANJIL</option>
+            <option value="2 GENAP">2 GENAP</option>
+            <option value="1 + 2">1 + 2</option>
+          </select>
+        </div>
+
+        <div>
+          <label for="kabupaten" class="block text-[11px] font-bold text-sky-950 mb-1">Kabupaten / Kota</label>
+          <select id="kabupaten" name="kabupaten" onchange="perbaruiDaftarLhok(); sinkronFilterFormKeTabel();"
+                  style="box-shadow: 0 5px 12px -2px rgba(3, 105, 161, 0.2), 0 1px 3px rgba(15, 23, 42, 0.06);"
+                  class="w-full rounded-lg border border-sky-300 bg-sky-50/70 px-2.5 py-1.5 text-xs text-slate-800 hover:-translate-y-0.5 hover:shadow-lg focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 transition duration-200 cursor-pointer">
+            <option value="">-- Pilih Kabupaten/Kota --</option>
+            {% for kab in peta_kabupaten_lhok.keys() %}
+              <option value="{{ kab }}">{{ kab }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div>
+          <label for="lhok" class="block text-[11px] font-bold text-sky-950 mb-1">Lhok / Kecamatan</label>
+          <input type="text" id="lhok" name="lhok" list="daftar-lhok" placeholder="Ketik atau pilih Lhok"
+                 style="box-shadow: 0 5px 12px -2px rgba(3, 105, 161, 0.2), 0 1px 3px rgba(15, 23, 42, 0.06);"
+                 class="w-full rounded-lg border border-sky-300 bg-sky-50/70 px-2.5 py-1.5 text-xs text-slate-800 hover:-translate-y-0.5 hover:shadow-lg focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 transition duration-200" />
+          <datalist id="daftar-lhok"></datalist>
+        </div>
+
+        <div class="sm:col-span-2">
+          <label for="nama" class="block text-[11px] font-bold text-sky-950 mb-1">Nama Penerima &amp; Orang Tua <span class="text-rose-600">*</span></label>
+          <input type="text" id="nama" name="nama" required placeholder="NAMA LENGKAP PENERIMA / BIN ATAU BINTI NAMA ORANG TUA"
+                 style="box-shadow: 0 5px 12px -2px rgba(3, 105, 161, 0.2), 0 1px 3px rgba(15, 23, 42, 0.06);"
+                 class="w-full rounded-lg border border-sky-300 bg-sky-50/70 px-2.5 py-1.5 text-xs uppercase text-slate-800 hover:-translate-y-0.5 hover:shadow-lg focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 transition duration-200" />
+        </div>
+
+        <div>
+          <label for="strata" class="block text-[11px] font-bold text-sky-950 mb-1">Jenjang / Strata</label>
+          <select id="strata" name="strata" onchange="hitungPreviewDana()"
+                  style="box-shadow: 0 5px 12px -2px rgba(3, 105, 161, 0.2), 0 1px 3px rgba(15, 23, 42, 0.06);"
+                  class="w-full rounded-lg border border-sky-300 bg-sky-50/70 px-2.5 py-1.5 text-xs text-slate-800 hover:-translate-y-0.5 hover:shadow-lg focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 transition duration-200 cursor-pointer">
+            <option value="">-- Pilih Jenjang --</option>
+            {% for t in data_jenjang %}
+              <option value="{{ t.jenjang }}" data-nominal="{{ t.nominal }}">{{ t.jenjang }} (Rp {{ t.nominal | rupiah }}/sem)</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div>
+          <label for="nomor_rekenig" class="block text-[11px] font-bold text-sky-950 mb-1">Nomor Rekening</label>
+          <input type="text" id="nomor_rekenig" name="nomor_rekenig" placeholder="Nomor rekening bank"
+                 style="box-shadow: 0 5px 12px -2px rgba(3, 105, 161, 0.2), 0 1px 3px rgba(15, 23, 42, 0.06);"
+                 class="w-full rounded-lg border border-sky-300 bg-sky-50/70 px-2.5 py-1.5 text-xs text-slate-800 hover:-translate-y-0.5 hover:shadow-lg focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 transition duration-200" />
+        </div>
+
+        <div class="sm:col-span-2 lg:col-span-3">
+          <label for="alamat" class="block text-[11px] font-bold text-sky-950 mb-1">Alamat</label>
+          <input type="text" id="alamat" name="alamat" placeholder="Gampong / Desa, Kecamatan, Kabupaten"
+                 style="box-shadow: 0 5px 12px -2px rgba(3, 105, 161, 0.2), 0 1px 3px rgba(15, 23, 42, 0.06);"
+                 class="w-full rounded-lg border border-sky-300 bg-sky-50/70 px-2.5 py-1.5 text-xs text-slate-800 hover:-translate-y-0.5 hover:shadow-lg focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 transition duration-200" />
+        </div>
+
+        <div>
+          <label for="jumlah_dana" class="block text-[11px] font-bold text-sky-950 mb-1">Jumlah Dana (Rp)</label>
+          <input type="text" id="jumlah_dana" name="jumlah_dana" placeholder="Otomatis sesuai jenjang &amp; semester"
+                 style="box-shadow: 0 5px 12px -2px rgba(3, 105, 161, 0.24), 0 1px 3px rgba(15, 23, 42, 0.06);"
+                 class="w-full rounded-lg border border-sky-300 bg-sky-100/85 px-2.5 py-1.5 text-xs font-semibold text-sky-950 hover:-translate-y-0.5 hover:shadow-lg focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 transition duration-200" />
+        </div>
+      </div>
+
+      <div class="flex items-center justify-end pt-2.5 border-t border-sky-200/80">
+        <button type="submit"
+                style="box-shadow: 0 8px 16px -4px rgba(3, 105, 161, 0.45);"
+                class="inline-flex items-center justify-center px-4 py-2 rounded-lg bg-sky-700 hover:bg-sky-800 text-white text-xs font-semibold hover:-translate-y-1 hover:shadow-xl transition duration-200 shrink-0 cursor-pointer">
+          Simpan Data Penerima
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Tabel Daftar Penerima + Pencarian + Aksi Edit & Hapus -->
+  <div class="bg-white rounded-xl border border-sky-300 p-4 shadow-[6px_8px_18px_-4px_rgba(3,105,161,0.22),-6px_8px_18px_-4px_rgba(14,165,233,0.14)] space-y-3">
+    <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2.5">
+      <div>
+        <h2 class="text-sm font-bold text-sky-950">Daftar Penerima Terdaftar</h2>
+        <p class="text-[11px] text-slate-600">Baris dengan tanda <span class="font-bold text-rose-700">GANDA</span> menunjukkan data terdeteksi lebih dari sekali pada tahun ajaran yang sama.</p>
+      </div>
+
+      <div class="flex flex-col sm:flex-row sm:items-center gap-2">
+        <!-- Kotak Pencarian -->
+        <div class="relative flex items-center">
+          <input type="text" id="cariPenerima" oninput="filterTabelPenerima()"
+                 placeholder="Cari nama, orang tua, lhok, alamat, rek..."
+                 style="box-shadow: 0 4px 10px -2px rgba(3, 105, 161, 0.16), 0 1px 2px rgba(15, 23, 42, 0.05);"
+                 class="w-full sm:w-64 rounded-lg border border-sky-300 bg-sky-50/60 pl-3 pr-7 py-1.5 text-xs text-slate-800 hover:-translate-y-0.5 hover:shadow-md focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 transition duration-200" />
+          <button type="button" id="btnResetCari" onclick="resetPencarianPenerima()" title="Bersihkan pencarian"
+                  class="hidden absolute right-2 text-slate-400 hover:text-slate-700 text-sm font-bold px-1 cursor-pointer">&times;</button>
+        </div>
+
+        <!-- Ringkasan Jumlah Baris -->
+        <div id="infoJumlahBaris" class="text-[11px] font-bold text-sky-950 bg-sky-100/80 border border-sky-300 px-3 py-1.5 rounded-lg whitespace-nowrap shadow-[3px_5px_12px_-4px_rgba(3,105,161,0.16),-3px_5px_12px_-4px_rgba(14,165,233,0.1)]">
+          Tampil: {{ daftar_penerima | length }} / {{ daftar_penerima | length }} baris
+        </div>
+      </div>
+    </div>
+
+    <div class="overflow-x-auto rounded-lg border border-sky-300 shadow-[6px_8px_18px_-4px_rgba(3,105,161,0.22),-6px_8px_18px_-4px_rgba(14,165,233,0.16)]">
+      <table id="tabelPenerima" class="w-full text-left border-collapse text-xs">
+        <thead>
+          <tr class="bg-sky-700 text-white border-b border-sky-800 uppercase text-[10px] tracking-wider font-bold">
+            <th class="py-2 px-2 text-center w-11">No</th>
+            <th class="py-2 px-2 whitespace-nowrap">Tahun</th>
+            <th class="py-2 px-2 whitespace-nowrap">Semester</th>
+            <th class="py-2 px-2 min-w-[130px]">Kabupaten / Kota</th>
+            <th class="py-2.5 px-3 min-w-[165px]">Lhok</th>
+            <th class="py-2.5 px-3 min-w-[260px] lg:min-w-[300px]">Nama Penerima &amp; ALAMAT</th>
+            <th class="py-2 px-2 whitespace-nowrap">Jenjang</th>
+            <th class="py-2 px-2 whitespace-nowrap">No. Rekening</th>
+            <th class="py-2 px-2 text-right whitespace-nowrap">Jumlah Dana</th>
+            <th class="py-2 px-2 text-center whitespace-nowrap">Aksi</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-200 bg-white">
+          {% for b in daftar_penerima %}
+            {% set is_ganda = false %}
+            {% for g in temuan_ganda %}
+              {% if (g.tahun | upper) == ((b.tahun or 'TANPA TAHUN') | trim | upper) and (g.nama | upper) == ((b.nama_penerima or '') | trim | upper) %}
+                {% set is_ganda = true %}
+              {% endif %}
+            {% endfor %}
+            <tr data-row-penerima="1"
+                data-tahun="{{ (b.tahun or '') | trim | upper }}"
+                data-kabupaten="{{ (b.kabupaten_kota or '') | trim | upper }}"
+                class="{% if is_ganda %}bg-rose-50/85 hover:bg-rose-100/75{% else %}hover:bg-sky-50/75{% endif %}">
+              <td class="py-2 px-2 text-center font-medium text-slate-600">{{ b.no or loop.index }}</td>
+              <td class="py-2 px-2 whitespace-nowrap">{{ b.tahun or '-' }}</td>
+              <td class="py-2 px-2 whitespace-nowrap">{{ b.semester or '-' }}</td>
+              <td class="py-2 px-2 font-medium text-slate-800 whitespace-nowrap">{{ b.kabupaten_kota or '-' }}</td>
+              <td class="py-2.5 px-3 text-slate-700 font-medium">{{ b.lhok or '-' }}</td>
+              <td class="py-2.5 px-3 font-bold text-slate-900">
+                <div class="leading-snug">
+                  {{ b.nama_penerima or '-' }}
+                  {% if is_ganda %}
+                    <span class="ml-1 inline-block align-middle text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-rose-600 text-white">
+                      GANDA
+                    </span>
+                  {% endif %}
+                </div>
+                {% if b.alamat %}
+                  <div class="text-[11px] font-normal text-slate-500 mt-0.5 leading-snug">{{ b.alamat }}</div>
+                {% endif %}
+              </td>
+              <td class="py-2 px-2 whitespace-nowrap">
+                {% if b.strata_pendidikan %}
+                  <span class="inline-block px-2 py-0.5 rounded bg-emerald-50 border border-emerald-200 text-emerald-900 font-semibold text-[10px]">
+                    {{ b.strata_pendidikan }}
+                  </span>
+                {% else %}-{% endif %}
+              </td>
+              <td class="py-2 px-2 whitespace-nowrap font-mono text-slate-700">{{ b.nomor_rekening or '-' }}</td>
+              <td class="py-2 px-2 text-right font-semibold text-sky-950 whitespace-nowrap">
+                {{ b.jumlah_dana | rupiah }}
+              </td>
+              <td class="py-2 px-2 text-center whitespace-nowrap space-x-1">
+                <button type="button"
+                        data-id="{{ b.id }}"
+                        data-tahun="{{ b.tahun or '' }}"
+                        data-semester="{{ b.semester or '' }}"
+                        data-kabupaten="{{ b.kabupaten_kota or '' }}"
+                        data-lhok="{{ b.lhok or '' }}"
+                        data-nama="{{ b.nama_penerima or '' }}"
+                        data-alamat="{{ b.alamat or '' }}"
+                        data-strata="{{ b.strata_pendidikan or '' }}"
+                        data-rekening="{{ b.nomor_rekening or '' }}"
+                        data-dana="{{ b.jumlah_dana or 0 }}"
+                        onclick="bukaModalEdit(this)"
+                        class="px-2 py-1 rounded bg-sky-100 hover:bg-sky-200 text-sky-950 font-semibold text-[11px] transition cursor-pointer">
+                  Edit
+                </button>
+                <form method="post" action="{{ url_for('hapus_penerima', row_id=b.id) }}"
+                      onsubmit="return confirm('Hapus data penerima {{ b.nama_penerima }}?');" class="inline">
+                  <button type="submit"
+                          class="px-2 py-1 rounded bg-rose-100 hover:bg-rose-200 text-rose-800 font-semibold text-[11px] transition cursor-pointer">
+                    Hapus
+                  </button>
+                </form>
+              </td>
+            </tr>
+          {% else %}
+            <tr id="barisKosongAwal">
+              <td colspan="10" class="py-6 px-4 text-center text-slate-500">
+                Belum ada data penerima. Silakan tambah data baru atau gunakan menu <strong>Import Data</strong>.
+              </td>
+            </tr>
+          {% endfor %}
+          <tr id="barisHasilPencarianKosong" class="hidden">
+            <td colspan="10" class="py-6 px-4 text-center text-slate-500">
+              Tidak ada data penerima yang cocok dengan filter Tahun Ajaran, Kabupaten/Kota, atau kata kunci pencarian.
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Edit Data Penerima -->
+<div id="modalEditPenerima" onclick="if(event.target === this) tutupModalEdit();"
+     class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/50 p-4">
+  <div class="bg-white rounded-xl border border-sky-300 max-w-2xl w-full p-5 shadow-xl space-y-4 max-h-[90vh] overflow-y-auto">
+    <div class="flex items-center justify-between border-b border-sky-200 pb-3">
+      <div>
+        <h3 class="text-base font-bold text-sky-950">Edit Data Penerima</h3>
+        <p class="text-xs text-slate-500">Perbarui rincian penerima lalu klik Simpan Perubahan.</p>
+      </div>
+      <button type="button" onclick="tutupModalEdit()"
+              class="text-slate-400 hover:text-slate-700 text-lg font-bold px-2 cursor-pointer">&times;</button>
+    </div>
+
+    <form id="formEditPenerima" method="post" action="" class="space-y-4">
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label for="edit_tahun" class="block text-xs font-bold text-sky-950 mb-1">Tahun Ajaran</label>
+          <select id="edit_tahun" name="tahun"
+                  class="w-full rounded-lg border border-sky-300 bg-sky-50/60 px-3 py-2 text-xs text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500">
+            <option value="">-- Pilih Tahun Ajaran --</option>
+            {% for thn in range(2005, 2051) %}
+              {% set label_ta = thn ~ '/' ~ (thn + 1) %}
+              <option value="{{ label_ta }}">{{ label_ta }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div>
+          <label for="edit_semester" class="block text-xs font-bold text-sky-950 mb-1">Semester</label>
+          <select id="edit_semester" name="semester" onchange="hitungPreviewEditDana()"
+                  class="w-full rounded-lg border border-sky-300 bg-sky-50/60 px-3 py-2 text-xs text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500">
+            <option value="">-- Pilih Semester --</option>
+            <option value="1 GANJIL">1 GANJIL</option>
+            <option value="2 GENAP">2 GENAP</option>
+            <option value="1 + 2">1 + 2</option>
+          </select>
+        </div>
+
+        <div>
+          <label for="edit_kabupaten" class="block text-xs font-bold text-sky-950 mb-1">Kabupaten / Kota</label>
+          <select id="edit_kabupaten" name="kabupaten" onchange="perbaruiDaftarLhokEdit()"
+                  class="w-full rounded-lg border border-sky-300 bg-sky-50/60 px-3 py-2 text-xs text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500">
+            <option value="">-- Pilih Kabupaten/Kota --</option>
+            {% for kab in peta_kabupaten_lhok.keys() %}
+              <option value="{{ kab }}">{{ kab }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div>
+          <label for="edit_lhok" class="block text-xs font-bold text-sky-950 mb-1">Lhok / Kecamatan</label>
+          <input type="text" id="edit_lhok" name="lhok" list="daftar-lhok-edit"
+                 class="w-full rounded-lg border border-sky-300 bg-sky-50/60 px-3 py-2 text-xs text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500" />
+          <datalist id="daftar-lhok-edit"></datalist>
+        </div>
+
+        <div class="sm:col-span-2">
+          <label for="edit_nama" class="block text-xs font-bold text-sky-950 mb-1">Nama Penerima &amp; Orang Tua <span class="text-rose-600">*</span></label>
+          <input type="text" id="edit_nama" name="nama" required
+                 class="w-full rounded-lg border border-sky-300 bg-sky-50/60 px-3 py-2 text-xs uppercase text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500" />
+        </div>
+
+        <div>
+          <label for="edit_strata" class="block text-xs font-bold text-sky-950 mb-1">Jenjang / Strata</label>
+          <select id="edit_strata" name="strata" onchange="hitungPreviewEditDana()"
+                  class="w-full rounded-lg border border-sky-300 bg-sky-50/60 px-3 py-2 text-xs text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500">
+            <option value="">-- Pilih Jenjang --</option>
+            {% for t in data_jenjang %}
+              <option value="{{ t.jenjang }}" data-nominal="{{ t.nominal }}">{{ t.jenjang }} (Rp {{ t.nominal | rupiah }}/sem)</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div>
+          <label for="edit_nomor_rekenig" class="block text-xs font-bold text-sky-950 mb-1">Nomor Rekening</label>
+          <input type="text" id="edit_nomor_rekenig" name="nomor_rekenig"
+                 class="w-full rounded-lg border border-sky-300 bg-sky-50/60 px-3 py-2 text-xs text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500" />
+        </div>
+
+        <div>
+          <label for="edit_jumlah_dana" class="block text-xs font-bold text-sky-950 mb-1">Jumlah Dana (Rp)</label>
+          <input type="text" id="edit_jumlah_dana" name="jumlah_dana"
+                 class="w-full rounded-lg border border-sky-300 bg-sky-100/80 px-3 py-2 text-xs font-semibold text-sky-950 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500" />
+        </div>
+
+        <div>
+          <label for="edit_alamat" class="block text-xs font-bold text-sky-950 mb-1">Alamat</label>
+          <input type="text" id="edit_alamat" name="alamat"
+                 class="w-full rounded-lg border border-sky-300 bg-sky-50/60 px-3 py-2 text-xs text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500" />
+        </div>
+      </div>
+
+      <div class="flex items-center justify-end gap-2 pt-3 border-t border-sky-200">
+        <button type="button" onclick="tutupModalEdit()"
+                class="px-4 py-2 rounded-lg border border-sky-300 bg-sky-50 text-sky-950 hover:bg-sky-100 text-xs font-semibold cursor-pointer">
+          Batal
+        </button>
+        <button type="submit"
+                class="px-5 py-2 rounded-lg bg-sky-700 hover:bg-sky-800 text-white text-xs font-semibold shadow-xs cursor-pointer">
+          Simpan Perubahan
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  const PETA_LHOK = {{ peta_kabupaten_lhok | tojson }};
+  const URL_EDIT_BASE = "{{ url_for('edit_penerima', row_id='__ID__') }}";
+
+  function formatRibuan(angka) {
+    const num = parseInt(angka || 0, 10) || 0;
+    return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  }
+
+  function perbaruiDaftarLhok() {
+    const kab = document.getElementById("kabupaten").value;
+    const datalist = document.getElementById("daftar-lhok");
+    datalist.innerHTML = "";
+    if (kab && PETA_LHOK[kab]) {
+      PETA_LHOK[kab].forEach((lhok) => {
+        const opt = document.createElement("option");
+        opt.value = lhok;
+        datalist.appendChild(opt);
+      });
+    }
+  }
+
+  function perbaruiDaftarLhokEdit() {
+    const kab = document.getElementById("edit_kabupaten").value;
+    const datalist = document.getElementById("daftar-lhok-edit");
+    datalist.innerHTML = "";
+    if (kab && PETA_LHOK[kab]) {
+      PETA_LHOK[kab].forEach((lhok) => {
+        const opt = document.createElement("option");
+        opt.value = lhok;
+        datalist.appendChild(opt);
+      });
+    }
+  }
+
+  function hitungPreviewDana() {
+    const strataEl = document.getElementById("strata");
+    const semester = document.getElementById("semester").value;
+    const danaInput = document.getElementById("jumlah_dana");
+    const opsiTerpilih = strataEl.options[strataEl.selectedIndex];
+    const nominalDasar = opsiTerpilih ? parseInt(opsiTerpilih.getAttribute("data-nominal") || "0", 10) : 0;
+
+    if (nominalDasar > 0) {
+      const pengali = semester === "1 + 2" ? 2 : 1;
+      danaInput.value = formatRibuan(nominalDasar * pengali);
+    }
+  }
+
+  function hitungPreviewEditDana() {
+    const strataEl = document.getElementById("edit_strata");
+    const semester = document.getElementById("edit_semester").value;
+    const danaInput = document.getElementById("edit_jumlah_dana");
+    const opsiTerpilih = strataEl.options[strataEl.selectedIndex];
+    const nominalDasar = opsiTerpilih ? parseInt(opsiTerpilih.getAttribute("data-nominal") || "0", 10) : 0;
+
+    if (nominalDasar > 0) {
+      const pengali = semester === "1 + 2" ? 2 : 1;
+      danaInput.value = formatRibuan(nominalDasar * pengali);
+    }
+  }
+
+  function sinkronFilterFormKeTabel() {
+    const inputCari = document.getElementById("cariPenerima");
+    const btnReset = document.getElementById("btnResetCari");
+    const kataKunci = (inputCari ? inputCari.value : "").trim().toLowerCase();
+
+    const tahunDipilih = (document.getElementById("tahun")?.value || "").trim().toUpperCase();
+    const kabDipilih = (document.getElementById("kabupaten")?.value || "").trim().toUpperCase();
+
+    const barisData = document.querySelectorAll('#tabelPenerima tbody tr[data-row-penerima="1"]');
+    const barisKosongSearch = document.getElementById("barisHasilPencarianKosong");
+    const infoJumlah = document.getElementById("infoJumlahBaris");
+
+    if (btnReset) {
+      btnReset.classList.toggle("hidden", !kataKunci);
+    }
+
+    let terlihat = 0;
+    barisData.forEach((tr) => {
+      const tahunBaris = (tr.getAttribute("data-tahun") || "").trim().toUpperCase();
+      const kabBaris = (tr.getAttribute("data-kabupaten") || "").trim().toUpperCase();
+      const teksBaris = (tr.textContent || "").toLowerCase();
+
+      const cocokTahun = !tahunDipilih || tahunBaris === tahunDipilih;
+      const cocokKab = !kabDipilih || kabBaris === kabDipilih;
+      const cocokTeks = !kataKunci || teksBaris.includes(kataKunci);
+
+      const tampil = cocokTahun && cocokKab && cocokTeks;
+      tr.classList.toggle("hidden", !tampil);
+      if (tampil) terlihat++;
+    });
+
+    if (barisKosongSearch && barisData.length > 0) {
+      barisKosongSearch.classList.toggle("hidden", terlihat > 0);
+    }
+
+    if (infoJumlah) {
+      const labelFilter = [];
+      if (tahunDipilih) labelFilter.push(`TA ${tahunDipilih}`);
+      if (kabDipilih) labelFilter.push(kabDipilih);
+      const suffix = labelFilter.length ? ` · ${labelFilter.join(" · ")}` : "";
+      infoJumlah.textContent = `Tampil: ${terlihat} / ${barisData.length} baris${suffix}`;
+    }
+  }
+
+  function filterTabelPenerima() {
+    sinkronFilterFormKeTabel();
+  }
+
+  function resetPencarianPenerima() {
+    const inputCari = document.getElementById("cariPenerima");
+    if (inputCari) inputCari.value = "";
+    sinkronFilterFormKeTabel();
+  }
+
+  function bukaModalEdit(tombol) {
+    const id = tombol.getAttribute("data-id");
+    const form = document.getElementById("formEditPenerima");
+    form.action = URL_EDIT_BASE.replace("__ID__", id);
+
+    document.getElementById("edit_tahun").value = tombol.getAttribute("data-tahun") || "";
+    document.getElementById("edit_semester").value = tombol.getAttribute("data-semester") || "";
+    document.getElementById("edit_kabupaten").value = tombol.getAttribute("data-kabupaten") || "";
+    perbaruiDaftarLhokEdit();
+    document.getElementById("edit_lhok").value = tombol.getAttribute("data-lhok") || "";
+    document.getElementById("edit_nama").value = tombol.getAttribute("data-nama") || "";
+    document.getElementById("edit_alamat").value = tombol.getAttribute("data-alamat") || "";
+    document.getElementById("edit_strata").value = tombol.getAttribute("data-strata") || "";
+    document.getElementById("edit_nomor_rekenig").value = tombol.getAttribute("data-rekening") || "";
+    document.getElementById("edit_jumlah_dana").value = formatRibuan(tombol.getAttribute("data-dana") || 0);
+
+    const modal = document.getElementById("modalEditPenerima");
+    modal.classList.remove("hidden");
+    modal.classList.add("flex");
+  }
+
+  function tutupModalEdit() {
+    const modal = document.getElementById("modalEditPenerima");
+    modal.classList.add("hidden");
+    modal.classList.remove("flex");
+  }
+</script>
+{% endblock %}

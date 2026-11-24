@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+
+{% block title %}Import Data - SISTEM INFORMASI REKAPITULASI BANTUAN PENDIDIKAN/BEASISWA ANAK NELAYAN ACEH{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto space-y-6">
+  <!-- Header Halaman Bernuansa Biru Langit & Kotak Ringkasan Kuning Soft -->
+  <div style="box-shadow: 0 16px 32px -8px rgba(3, 105, 161, 0.24), 0 8px 16px -6px rgba(14, 165, 233, 0.15);"
+       class="bg-white rounded-xl border border-sky-300 border-l-4 border-l-sky-600 p-5 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+    <div>
+      <span class="inline-block text-[11px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-sky-100 text-sky-900 border border-sky-200 mb-1">
+        Impor Massal &amp; Validasi
+      </span>
+      <h1 class="text-2xl font-bold text-slate-900">Import Data Penerima</h1>
+      <p class="text-sm text-slate-600">Unggah file (.csv / .xlsx) atau tempel data langsung dari Excel dengan pencegahan nama ganda pada tahun ajaran yang sama.</p>
+    </div>
+
+    <div style="box-shadow: 0 8px 18px -4px rgba(3, 105, 161, 0.22), 0 4px 10px -3px rgba(180, 83, 9, 0.14);"
+         class="bg-amber-50/95 hover:bg-amber-50 border border-amber-300 rounded-xl px-4 py-2.5 text-xs shrink-0 hover:-translate-y-1 hover:shadow-xl transition duration-200 cursor-default">
+      <div class="text-amber-800 font-bold uppercase tracking-wide text-[10px]">Data Terdaftar Saat Ini</div>
+      <div class="text-xl font-bold text-amber-950 mt-0.5">
+        {{ total_terdaftar | default(0) }} <span class="text-xs font-semibold text-amber-800">penerima</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pesan Flash -->
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <div class="space-y-2">
+        {% for category, message in messages %}
+          <div style="box-shadow: 0 8px 18px -4px rgba(3, 105, 161, 0.18), 0 4px 10px -3px rgba(15, 23, 42, 0.08);"
+               class="rounded-xl px-4 py-3 text-sm font-medium border
+            {% if category == 'success' %}
+              bg-emerald-50 text-emerald-950 border-emerald-300
+            {% elif category == 'warning' %}
+              bg-rose-50 text-rose-950 border-rose-300
+            {% else %}
+              bg-amber-50 text-amber-950 border-amber-300
+            {% endif %}">
+            {{ message }}
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
+
+  <!-- Form Import Data -->
+  <form id="formImportData" method="post" action="{{ url_for('import_data') }}" enctype="multipart/form-data"
+        style="box-shadow: 0 18px 34px -8px rgba(3, 105, 161, 0.25), 0 8px 16px -6px rgba(14, 165, 233, 0.15);"
+        class="bg-white rounded-xl border border-sky-300 border-l-4 border-l-sky-600 p-5 space-y-5">
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div>
+        <label for="tahun_bawaan" class="block text-xs font-bold text-sky-950 mb-1">Tahun Ajaran Bawaan (Opsional)</label>
+        <input type="text" id="tahun_bawaan" name="tahun_bawaan" value="{{ tahun_bawaan | default('') }}"
+               placeholder="Contoh: 2026/2027 (dipakai jika kolom tahun kosong)"
+               style="box-shadow: 0 5px 12px -2px rgba(3, 105, 161, 0.16), 0 1px 3px rgba(15, 23, 42, 0.05);"
+               class="w-full rounded-lg border border-sky-300 bg-sky-50/50 px-3 py-2 text-sm text-slate-800 hover:-translate-y-0.5 hover:shadow-md focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-400 transition duration-200" />
+      </div>
+
+      <div>
+        <label for="semester_bawaan" class="block text-xs font-bold text-sky-950 mb-1">Semester Bawaan (Opsional)</label>
+        <select id="semester_bawaan" name="semester_bawaan"
+                style="box-shadow: 0 5px 12px -2px rgba(3, 105, 161, 0.16), 0 1px 3px rgba(15, 23, 42, 0.05);"
+                class="w-full rounded-lg border border-sky-300 bg-sky-50/50 px-3 py-2 text-sm text-slate-800 hover:-translate-y-0.5 hover:shadow-md focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-400 transition duration-200 cursor-pointer">
+          <option value="">-- Ikuti Data / Kosong --</option>
+          <option value="1 GANJIL" {% if semester_bawaan == '1 GANJIL' %}selected{% endif %}>1 GANJIL</option>
+          <option value="2 GENAP" {% if semester_bawaan == '2 GENAP' %}selected{% endif %}>2 GENAP</option>
+          <option value="1 + 2" {% if semester_bawaan == '1 + 2' %}selected{% endif %}>1 + 2</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Kotak Unggah File Bernuansa Mint/Teal Lembut -->
+    <div style="box-shadow: 0 8px 18px -4px rgba(3, 105, 161, 0.16), 0 4px 10px -3px rgba(13, 148, 136, 0.12);"
+         class="rounded-xl border border-teal-300 bg-teal-50/55 hover:bg-teal-50/80 p-4 hover:-translate-y-0.5 hover:shadow-lg transition duration-200">
+      <label for="file_import" class="block text-xs font-bold text-teal-950 mb-1.5">Pilih File (.csv atau .xlsx)</label>
+      <input type="file" id="file_import" name="file_import" accept=".csv,.xlsx,.txt"
+             class="block w-full text-xs text-slate-600 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-teal-100 file:text-teal-950 hover:file:bg-teal-200 border border-teal-300 bg-white rounded-lg p-1.5 cursor-pointer" />
+    </div>
+
+    <div>
+      <label for="teks_import" class="block text-xs font-bold text-sky-950 mb-1.5">Atau Tempel Data Langsung dari Excel / CSV</label>
+      <textarea id="teks_import" name="teks_import" rows="6"
+                placeholder="Tempel baris data dari Excel (dipisah Tab/Koma/Titik Koma)..."
+                style="box-shadow: 0 6px 14px -3px rgba(3, 105, 161, 0.16), 0 2px 6px -2px rgba(15, 23, 42, 0.05);"
+                class="w-full rounded-lg border border-sky-300 bg-sky-50/35 px-3 py-2 text-xs font-mono text-slate-800 hover:-translate-y-0.5 hover:shadow-md focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-400 transition duration-200">{{ teks_tempel | default('') }}</textarea>
+      <div class="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-600">
+        <span class="font-semibold text-sky-950">Urutan kolom standar (opsional diawali NO):</span>
+        {% for col in ['TAHUN', 'SEMESTER', 'KABUPATEN/KOTA', 'LHOK', 'NAMA PENERIMA', 'ALAMAT', 'STRATA PENDIDIKAN', 'NOMOR REKENING', 'JUMLAH DANA'] %}
+          <span class="px-2 py-0.5 rounded bg-sky-100 text-sky-950 border border-sky-200 font-mono text-[10px] font-semibold">{{ col }}</span>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Pengaturan Keamanan & Mode Impor (Kotak Ringkasan Kuning Soft) -->
+    <div style="box-shadow: 0 8px 18px -4px rgba(3, 105, 161, 0.18), 0 4px 10px -3px rgba(180, 83, 9, 0.12);"
+         class="bg-amber-50/90 hover:bg-amber-50 border border-amber-300 rounded-xl p-4 space-y-3 text-xs hover:-translate-y-0.5 hover:shadow-lg transition duration-200">
+      <div class="font-bold text-amber-950 uppercase tracking-wide text-[11px]">Pengaturan Validasi &amp; Mode Penyimpanan</div>
+
+      <label class="flex items-center gap-2 text-slate-800 font-medium cursor-pointer hover:translate-x-0.5 transition">
+        <input type="checkbox" name="blokir_nama_sama" value="1" checked
+               class="rounded border-sky-300 text-sky-600 focus:ring-sky-500" />
+        <span>Blokir otomatis nama yang sama pada tahun ajaran yang sama (mencegah input ganda)</span>
+      </label>
+
+      <label class="flex items-center gap-2 text-slate-800 cursor-pointer hover:translate-x-0.5 transition">
+        <input type="checkbox" name="paksa_hitung_dana" value="1" {% if paksa_hitung_dana %}checked{% endif %}
+               class="rounded border-sky-300 text-sky-600 focus:ring-sky-500" />
+        <span>Hitung ulang otomatis nominal dana sesuai tarif jenjang &amp; semester</span>
+      </label>
+
+      <div class="pt-2.5 border-t border-amber-200 flex flex-wrap items-center gap-5">
+        <span class="font-bold text-amber-950">Mode Simpan:</span>
+        <label class="inline-flex items-center gap-1.5 cursor-pointer text-slate-800 hover:-translate-y-0.5 transition">
+          <input type="radio" name="mode_import" value="tambah" checked class="text-sky-600 focus:ring-sky-500" />
+          <span>Tambahkan ke data yang sudah ada</span>
+        </label>
+        <label style="box-shadow: 0 3px 8px -2px rgba(190, 24, 93, 0.16);"
+               class="inline-flex items-center gap-1.5 cursor-pointer rounded-lg border border-rose-200 bg-rose-50/90 px-2.5 py-1 hover:-translate-y-0.5 hover:shadow-md transition duration-200">
+          <input type="radio" name="mode_import" value="timpa" class="text-rose-600 focus:ring-rose-500" />
+          <span class="text-rose-800 font-bold">Timpa seluruh data lama</span>
+        </label>
+      </div>
+    </div>
+
+    <div class="flex flex-wrap items-center justify-end gap-3 pt-2 border-t border-sky-200/80">
+      <a href="{{ url_for('penerima') }}"
+         style="box-shadow: 0 5px 12px -2px rgba(3, 105, 161, 0.18);"
+         class="px-4 py-2 rounded-lg border border-sky-300 bg-sky-50 text-sky-950 hover:bg-sky-100 hover:-translate-y-1 hover:shadow-md text-xs sm:text-sm font-semibold transition duration-200">
+        Kembali ke Data Penerima
+      </a>
+      <button type="submit"
+              style="box-shadow: 0 8px 18px -4px rgba(3, 105, 161, 0.42);"
+              class="px-5 py-2.5 rounded-lg bg-sky-700 hover:bg-sky-800 text-white text-xs sm:text-sm font-bold hover:-translate-y-1 hover:shadow-xl transition duration-200 cursor-pointer">
+        Proses Import Data
+      </button>
+    </div>
+  </form>
+</div>
+
+<script>
+  (function () {
+    const formImport = document.getElementById("formImportData");
+    if (!formImport) return;
+
+    formImport.addEventListener("submit", function (e) {
+      const modeTimpa = formImport.querySelector('input[name="mode_import"][value="timpa"]');
+      if (modeTimpa && modeTimpa.checked) {
+        const yakin = confirm("PERHATIAN: Anda memilih 'Timpa seluruh data lama'. Seluruh data penerima yang sudah ada akan diganti. Lanjutkan?");
+        if (!yakin) {
+          e.preventDefault();
+        }
+      }
+    });
+  })();
+</script>
+{% endblock %}
