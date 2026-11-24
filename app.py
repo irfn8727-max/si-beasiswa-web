@@ -30,6 +30,10 @@ ADMIN_PASSWORD_HASH = generate_password_hash(
     os.environ.get("APP_ADMIN_PASS", "AdminAceh2026!")
 )
 
+BENDAHARA_USERNAME = os.environ.get("APP_BENDAHARA_USER", "bendahara")
+BENDAHARA_PASSWORD_HASH = generate_password_hash(
+    os.environ.get("APP_BENDAHARA_PASS", "BendaharaAceh2026!")
+)
 
 DATABASE_URL = os.environ.get("DATABASE_URL")
 DB_SSLMODE = os.environ.get("DB_SSLMODE")  # isi "require" di cloud jika diminta
@@ -900,6 +904,9 @@ def wajib_login():
         return None
     if not session.get("logged_in"):
         return redirect(url_for("login", next=request.path))
+    if endpoint == "format_bank" and session.get("role") == "admin":
+        flash("Menu Format Bank khusus untuk Bendahara.", "warning")
+        return redirect(url_for("dashboard"))
     return None
 
 
@@ -912,20 +919,28 @@ def login():
         username = (request.form.get("username") or "").strip()
         password = request.form.get("password") or ""
 
+        role_login = None
         if username == ADMIN_USERNAME and check_password_hash(ADMIN_PASSWORD_HASH, password):
+            role_login = "admin"
+        elif username == BENDAHARA_USERNAME and check_password_hash(BENDAHARA_PASSWORD_HASH, password):
+            role_login = "bendahara"
+
+        if role_login:
             session.clear()
             session["logged_in"] = True
             session["username"] = username
+            session["role"] = role_login
             flash("Berhasil masuk ke sistem.", "success")
             next_url = request.args.get("next") or url_for("dashboard")
             if not next_url.startswith("/"):
+                next_url = url_for("dashboard")
+            if role_login == "admin" and next_url.startswith(url_for("format_bank")):
                 next_url = url_for("dashboard")
             return redirect(next_url)
 
         flash("Username atau password tidak sesuai.", "error")
 
     return render_template("login.html")
-
 
 @app.route("/logout")
 def logout():
