@@ -481,8 +481,9 @@
       overflow-wrap: break-word !important;
     }
 
-    /* Header tabel tetap teks putih di atas latar gelap */
+    /* Header tabel: teks putih di atas latar gelap */
     .tabel-cetak-wrapper thead th,
+    .tabel-cetak-wrapper thead tr th,
     .tabel-cetak-wrapper th {
       color: #ffffff !important;
       -webkit-print-color-adjust: exact !important;
@@ -498,6 +499,7 @@
     .tabel-cetak-wrapper th:nth-child(1) {
       text-align: center !important;
       white-space: nowrap !important;
+      color: #ffffff !important;
     }
 
     /* Kolom 2: Nama Penerima & Alamat */
@@ -509,11 +511,13 @@
     .tabel-cetak-wrapper th:nth-child(2) {
       white-space: normal !important;
       overflow-wrap: break-word !important;
+      color: #ffffff !important;
     }
 
-    /* Baris Alamat di bawah Nama: abu tua, kecil & tidak bold */
-    .tabel-cetak-wrapper td:nth-child(2) div,
-    .tabel-cetak-wrapper td:nth-child(2) .alamat-cetak {
+    /* Baris Alamat di bawah Nama: abu tua (#334155), kecil & tidak bold */
+    .tabel-cetak-wrapper td:nth-child(2) .alamat-cetak,
+    .tabel-cetak-wrapper tbody td .alamat-cetak,
+    .tabel-cetak-wrapper .alamat-cetak {
       font-size: 8px !important;
       line-height: 1.15 !important;
       font-weight: 400 !important;
@@ -530,6 +534,7 @@
     .tabel-cetak-wrapper th:nth-child(3) {
       white-space: normal !important;
       overflow-wrap: break-word !important;
+      color: #ffffff !important;
     }
 
     /* Kolom 4: Jenjang */
@@ -541,6 +546,7 @@
     .tabel-cetak-wrapper th:nth-child(4) {
       text-align: center !important;
       white-space: nowrap !important;
+      color: #ffffff !important;
     }
 
     /* Kolom 5: No. Rekening */
@@ -553,6 +559,7 @@
     .tabel-cetak-wrapper th:nth-child(5) {
       white-space: nowrap !important;
       font-size: 9px !important;
+      color: #ffffff !important;
     }
 
     /* Kolom 6: Jumlah Dana */
@@ -564,6 +571,7 @@
     .tabel-cetak-wrapper th:nth-child(6) {
       text-align: right !important;
       white-space: nowrap !important;
+      color: #ffffff !important;
     }
   }
 </style>
