@@ -443,8 +443,8 @@
 
     /* Lebar kolom via colgroup (Total = 100%) */
     .tabel-cetak-wrapper col.col-print-1 { width: 4% !important; }
-    .tabel-cetak-wrapper col.col-print-2 { width: 54% !important; }
-    .tabel-cetak-wrapper col.col-print-3 { width: 13% !important; }
+    .tabel-cetak-wrapper col.col-print-2 { width: 50% !important; }
+    .tabel-cetak-wrapper col.col-print-3 { width: 17% !important; }
     .tabel-cetak-wrapper col.col-print-4 { width: 6% !important; }
     .tabel-cetak-wrapper col.col-print-5 { width: 12% !important; }
     .tabel-cetak-wrapper col.col-print-6 { width: 11% !important; }
@@ -479,6 +479,12 @@
     .tabel-cetak-wrapper td:nth-child(2) div {
       font-size: 9.5px !important;
       line-height: 1.15 !important;
+    }
+
+    .tabel-cetak-wrapper th:nth-child(3),
+    .tabel-cetak-wrapper td:nth-child(3) {
+      white-space: normal !important;
+      overflow-wrap: break-word !important;
     }
 
     .tabel-cetak-wrapper th:nth-child(4),
