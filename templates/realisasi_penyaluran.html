@@ -409,6 +409,7 @@
 
     body, main {
       background: #ffffff !important;
+      color: #000000 !important;
       overflow: visible !important;
       height: auto !important;
       padding: 0 !important;
@@ -439,15 +440,16 @@
       border-collapse: collapse !important;
       font-size: 10px !important;
       line-height: 1.2 !important;
+      color: #000000 !important;
     }
 
-    /* Lebar kolom via colgroup (Total = 100%) */
+    /* Lebar kolom via colgroup (Total = 100%, acuan Lhok Labuhan Haji Selatan) */
     .tabel-cetak-wrapper col.col-print-1 { width: 4% !important; }
-    .tabel-cetak-wrapper col.col-print-2 { width: 50% !important; }
-    .tabel-cetak-wrapper col.col-print-3 { width: 17% !important; }
+    .tabel-cetak-wrapper col.col-print-2 { width: 44% !important; }
+    .tabel-cetak-wrapper col.col-print-3 { width: 23% !important; }
     .tabel-cetak-wrapper col.col-print-4 { width: 6% !important; }
-    .tabel-cetak-wrapper col.col-print-5 { width: 12% !important; }
-    .tabel-cetak-wrapper col.col-print-6 { width: 11% !important; }
+    .tabel-cetak-wrapper col.col-print-5 { width: 13% !important; }
+    .tabel-cetak-wrapper col.col-print-6 { width: 10% !important; }
 
     .tabel-cetak-wrapper tr {
       break-inside: avoid !important;
@@ -464,45 +466,63 @@
       overflow-wrap: break-word !important;
     }
 
+    /* Kolom 1: No */
     .tabel-cetak-wrapper th:nth-child(1),
     .tabel-cetak-wrapper td:nth-child(1) {
       text-align: center !important;
       white-space: nowrap !important;
+      color: #000000 !important;
     }
 
+    /* Kolom 2: Nama Penerima & Alamat */
     .tabel-cetak-wrapper th:nth-child(2),
     .tabel-cetak-wrapper td:nth-child(2) {
       white-space: normal !important;
       overflow-wrap: break-word !important;
+      color: #000000 !important;
     }
 
-    .tabel-cetak-wrapper td:nth-child(2) div {
-      font-size: 9.5px !important;
+    /* Baris Alamat di bawah Nama: kecil & tidak bold */
+    .tabel-cetak-wrapper td:nth-child(2) div,
+    .tabel-cetak-wrapper td:nth-child(2) .alamat-cetak {
+      font-size: 8px !important;
       line-height: 1.15 !important;
+      font-weight: 400 !important;
+      color: #000000 !important;
     }
 
+    /* Kolom 3: Lhok */
     .tabel-cetak-wrapper th:nth-child(3),
     .tabel-cetak-wrapper td:nth-child(3) {
       white-space: normal !important;
       overflow-wrap: break-word !important;
+      color: #000000 !important;
+      font-weight: 400 !important;
     }
 
+    /* Kolom 4: Jenjang */
     .tabel-cetak-wrapper th:nth-child(4),
     .tabel-cetak-wrapper td:nth-child(4) {
       text-align: center !important;
       white-space: nowrap !important;
+      color: #000000 !important;
     }
 
+    /* Kolom 5: No. Rekening */
     .tabel-cetak-wrapper th:nth-child(5),
     .tabel-cetak-wrapper td:nth-child(5) {
       white-space: nowrap !important;
       font-size: 9px !important;
+      color: #000000 !important;
+      font-weight: 400 !important;
     }
 
+    /* Kolom 6: Jumlah Dana */
     .tabel-cetak-wrapper th:nth-child(6),
     .tabel-cetak-wrapper td:nth-child(6) {
       text-align: right !important;
       white-space: nowrap !important;
+      color: #000000 !important;
     }
   }
 </style>
@@ -870,10 +890,10 @@ function renderPratinjauCetak() {
       return;
     }
 
-    let totalDanaCetak = 0;
+  let totalDanaCetak = 0;
     const barisHtml = rows.map(function (row, idx) {
       const nama = ambilNilaiField(row, ["nama_penerima", "NAMA", "nama"]) || "-";
-      const alamat = ambilNilaiField(row, ["alamat", "ALAMAT"]) || "-";
+      const alamat = formatAlamatTitleCase(ambilNilaiField(row, ["alamat", "ALAMAT"]));
       const lhok = formatLabelLhok(ambilNilaiField(row, ["lhok", "LHOK"]));
       const jenjang = ambilNilaiField(row, ["strata_pendidikan", "STRATA", "strata"]) || "-";
       const rek = ambilNilaiField(row, ["nomor_rekening", "NOMOR REKENIG", "NO REKENING", "rekening"]) || "-";
@@ -882,15 +902,15 @@ function renderPratinjauCetak() {
 
       return `
         <tr class="hover:bg-sky-50/60">
-          <td class="kol-no py-2 px-2.5 text-center text-slate-600">${idx + 1}</td>
-          <td class="kol-nama py-2 px-2.5 font-bold text-slate-900">
-            <div>${nama}</div>
-            <div class="text-[11px] font-normal text-slate-500">${alamat}</div>
+          <td class="kol-no py-2 px-2.5 text-center text-black">${idx + 1}</td>
+          <td class="kol-nama py-2 px-2.5 text-black">
+            <div class="font-bold text-black">${nama}</div>
+            <div class="alamat-cetak text-[10.5px] font-normal text-black">${alamat}</div>
           </td>
-          <td class="kol-lhok py-2 px-2.5 text-slate-700">${lhok}</td>
-          <td class="kol-jenjang py-2 px-2.5 text-center font-semibold text-slate-800">${jenjang}</td>
-          <td class="kol-rek py-2 px-2.5 font-mono text-slate-700">${rek}</td>
-          <td class="kol-dana py-2 px-2.5 text-right font-bold text-sky-950">${formatAngkaJS(dana)}</td>
+          <td class="kol-lhok py-2 px-2.5 text-black">${lhok}</td>
+          <td class="kol-jenjang py-2 px-2.5 text-center font-semibold text-black">${jenjang}</td>
+          <td class="kol-rek py-2 px-2.5 font-mono text-black">${rek}</td>
+          <td class="kol-dana py-2 px-2.5 text-right font-bold text-black">${formatAngkaJS(dana)}</td>
         </tr>`;
     }).join("");
 
