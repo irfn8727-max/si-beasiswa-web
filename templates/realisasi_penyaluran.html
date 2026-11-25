@@ -401,6 +401,21 @@
 </div>
 
 <style>
+  @media screen {
+    *,
+    *::before,
+    *::after {
+      transition: none !important;
+      animation: none !important;
+    }
+
+    *:hover,
+    *:active,
+    *:focus {
+      transform: none !important;
+    }
+  }
+
   @media print {
     @page {
       size: A4 portrait;
