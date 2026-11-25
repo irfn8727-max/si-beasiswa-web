@@ -512,8 +512,6 @@
     "PT": 900000,
   };
 
-  let previewRealisasiAktif = false;
-
   function ambilNilaiField(row, keys) {
     if (!row || typeof row !== "object") return "";
     for (const k of keys) {
@@ -578,7 +576,9 @@
     const petaJenjang = {};
 
     (rows || []).forEach(function (row) {
-      const jenjang = normalisasiJenjangLabel(ambilNilaiField(row, ["strata_pendidikan", "STRATA", "strata", "JENJANG", "jenjang"]));
+      const jenjang = normalisasiJenjangLabel(
+        ambilNilaiField(row, ["strata_pendidikan", "STRATA", "strata", "JENJANG", "jenjang"])
+      );
       if (!petaJenjang[jenjang]) {
         petaJenjang[jenjang] = { jenjang: jenjang, jumlah: 0, dana: 0 };
       }
@@ -728,7 +728,9 @@
 
     const setKab = new Set(kabTerpilih.map(normalisasiWilayah));
     const sasaran = (DATA_PENERIMA_CETAK || []).filter(function (row) {
-      const kabRow = normalisasiWilayah(ambilNilaiField(row, ["kabupaten_kota", "KABUPATEN", "KABUPATEN/KOTA", "kabupaten"]));
+      const kabRow = normalisasiWilayah(
+        ambilNilaiField(row, ["kabupaten_kota", "KABUPATEN", "KABUPATEN/KOTA", "kabupaten"])
+      );
       if (!setKab.has(kabRow)) return false;
 
       const tahunRow = ambilNilaiField(row, ["tahun", "TAHUN"]).toUpperCase();
@@ -778,25 +780,31 @@
     }).join("");
 
     wadah.innerHTML = `
-      <div class="flex flex-wrap items-center justify-between gap-2 text-xs">
-        <span class="font-bold text-emerald-950">Pratinjau Sasaran Realisasi: ${sasaran.length} Penerima</span>
-        <span class="text-slate-600">Total Dana: <strong>${formatAngkaJS(totalDanaSaatIni)}</strong> &rarr; <strong class="text-emerald-800">${formatAngkaJS(totalDanaSesudah)}</strong></span>
-      </div>
-      <div class="overflow-x-auto rounded-lg border border-emerald-200">
-        <table class="w-full text-left border-collapse text-xs">
-          <thead>
-            <tr class="bg-emerald-700 text-white text-[10px] uppercase font-bold">
-              <th class="py-2 px-3 text-center w-12">No</th>
-              <th class="py-2 px-3">Kabupaten/Kota</th>
-              <th class="py-2 px-3">Lhok</th>
-              <th class="py-2 px-3">Nama Penerima</th>
-              <th class="py-2 px-3 text-center">Jenjang</th>
-              <th class="py-2 px-3 text-right">Dana Awal</th>
-              <th class="py-2 px-3 text-right">Dana (1 + 2)</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-slate-200 bg-white">${rowsHtml}</tbody>
-        </table>
+      <div class="space-y-2">
+        <div class="flex flex-wrap items-center justify-between gap-2 text-xs">
+          <span class="font-bold text-emerald-950">Sasaran Realisasi: ${sasaran.length} Penerima</span>
+          <span class="font-bold text-emerald-900">
+            Total Sesudah: Rp ${formatAngkaJS(totalDanaSesudah)} (Saat Ini: Rp ${formatAngkaJS(totalDanaSaatIni)})
+          </span>
+        </div>
+        <div class="overflow-x-auto rounded-lg border border-emerald-200">
+          <table class="w-full text-left border-collapse text-xs">
+            <thead>
+              <tr class="bg-emerald-700 text-white text-[10px] uppercase font-bold">
+                <th class="py-2 px-3 text-center">No</th>
+                <th class="py-2 px-3">Kabupaten/Kota</th>
+                <th class="py-2 px-3">Lhok</th>
+                <th class="py-2 px-3">Nama Penerima</th>
+                <th class="py-2 px-3 text-center">Jenjang</th>
+                <th class="py-2 px-3 text-right">Dana Saat Ini</th>
+                <th class="py-2 px-3 text-right">Dana Sesudah (1+2)</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-200 bg-white">
+              ${rowsHtml}
+            </tbody>
+          </table>
+        </div>
       </div>`;
   }
 
@@ -925,43 +933,6 @@ function renderPratinjauCetak() {
     perbaruiFooterCetak(rows, semPilih);
   }
 
-    const tabelHtml = `
-      <div class="tabel-cetak-wrapper overflow-x-auto rounded-lg border border-sky-200">
-        <table class="w-full text-left border-collapse text-xs">
-          <thead>
-            <tr class="bg-sky-700 text-white text-[10px] uppercase font-bold">
-              <th class="kol-no py-2 px-2.5 text-center no-wrap-print">No</th>
-              <th class="kol-nama py-2 px-2.5">Nama Penerima &amp; Alamat</th>
-              <th class="kol-lhok py-2 px-2.5">Lhok</th>
-              <th class="kol-jenjang py-2 px-2.5 text-center no-wrap-print">Jenjang</th>
-              <th class="kol-rek py-2 px-2.5 no-wrap-print">No. Rekening</th>
-              <th class="kol-dana py-2 px-2.5 text-right no-wrap-print">Jumlah Dana (Rp)</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-slate-200 bg-white">
-            ${barisHtml}
-            <tr class="bg-amber-50 font-bold text-amber-950 border-t-2 border-amber-300">
-              <td colspan="5" class="py-2 px-2.5 text-right uppercase text-[10px]">TOTAL (${rows.length} PENERIMA)</td>
-              <td class="py-2 px-2.5 text-right">${formatAngkaJS(totalDanaCetak)}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>`;
-
-    if (wadah) {
-      wadah.innerHTML = `
-        <div class="flex flex-wrap items-center justify-between gap-2 text-xs">
-          <span class="font-bold text-sky-950">Pratinjau Cetak: ${rows.length} Penerima (${kabPilih})</span>
-          <span class="font-bold text-sky-900">Total Dana: Rp ${formatAngkaJS(totalDanaCetak)}</span>
-        </div>
-        ${tabelHtml}`;
-    }
-    if (printTabelWadah) {
-      printTabelWadah.innerHTML = tabelHtml;
-    }
-    perbaruiFooterCetak(rows, semPilih);
-  }
-
   function cetakDokumenRealisasi() {
     const kabPilih = (document.getElementById("cetak_kabupaten")?.value || "").trim();
     if (!kabPilih) {
@@ -1020,6 +991,9 @@ function renderPratinjauCetak() {
         }
       });
     }
+
+    renderPratinjauCetak();
+    renderPratinjauRealisasiSem2();
   })();
 </script>
 {% endblock %}
