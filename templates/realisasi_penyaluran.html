@@ -834,6 +834,18 @@
       </div>`;
   }
 
+
+function formatAlamatTitleCase(teks) {
+    const bersih = (teks || "").toString().trim().replace(/\s+/g, " ");
+    if (!bersih || bersih === "-") return "-";
+    return bersih
+      .toLowerCase()
+      .replace(/(^|[\s./(,-])([a-z])/g, function (_, pemisah, huruf) {
+        return pemisah + huruf.toUpperCase();
+      });
+  }
+
+
 function renderPratinjauCetak() {
     const wadah = document.getElementById("wadahPratinjauCetak");
     const printTabelWadah = document.getElementById("printTabelWadah");
