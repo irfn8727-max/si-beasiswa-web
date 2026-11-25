@@ -404,7 +404,7 @@
   @media print {
     @page {
       size: A4 portrait;
-      margin: 10mm;
+      margin: 5mm 7mm;
     }
 
     body, main {
@@ -419,49 +419,84 @@
       max-width: 100% !important;
     }
 
-    #areaCetakResmi .kop-cetak-resmi,
-    #areaCetakResmi .blok-pengesahan-cetak {
+    .kop-cetak-resmi,
+    .blok-pengesahan-cetak {
       break-inside: avoid !important;
       page-break-inside: avoid !important;
     }
 
-    #areaCetakResmi .tabel-cetak-wrapper {
+    .tabel-cetak-wrapper {
       overflow: visible !important;
       box-shadow: none !important;
       border: none !important;
       border-radius: 0 !important;
+      width: 100% !important;
     }
 
-    #areaCetakResmi table {
+    .tabel-cetak-wrapper table {
       width: 100% !important;
       table-layout: fixed !important;
-      font-size: 9.5px !important;
       border-collapse: collapse !important;
+      font-size: 8px !important;
+      line-height: 1.1 !important;
     }
 
-    #areaCetakResmi tr {
+    /* Lebar kolom via colgroup (Total = 100%) */
+    .tabel-cetak-wrapper col.col-print-1 { width: 4% !important; }
+    .tabel-cetak-wrapper col.col-print-2 { width: 55% !important; }
+    .tabel-cetak-wrapper col.col-print-3 { width: 13% !important; }
+    .tabel-cetak-wrapper col.col-print-4 { width: 6% !important; }
+    .tabel-cetak-wrapper col.col-print-5 { width: 12% !important; }
+    .tabel-cetak-wrapper col.col-print-6 { width: 10% !important; }
+
+    .tabel-cetak-wrapper tr {
       break-inside: avoid !important;
       page-break-inside: avoid !important;
     }
 
-    #areaCetakResmi th,
-    #areaCetakResmi td {
-      padding: 4px 5px !important;
+    .tabel-cetak-wrapper th,
+    .tabel-cetak-wrapper td {
+      padding: 1.5px 3px !important;
       border-left: none !important;
       border-right: none !important;
       border-bottom: 1px solid #cbd5e1 !important;
-      word-break: break-word !important;
-      overflow-wrap: anywhere !important;
-    }
-
-    #areaCetakResmi thead th {
-      border-bottom: 1.5px solid #0369a1 !important;
-    }
-
-    #areaCetakResmi th.no-wrap-print {
-      white-space: nowrap !important;
       word-break: normal !important;
-      overflow-wrap: normal !important;
+      overflow-wrap: break-word !important;
+    }
+
+    .tabel-cetak-wrapper th:nth-child(1),
+    .tabel-cetak-wrapper td:nth-child(1) {
+      text-align: center !important;
+      white-space: nowrap !important;
+    }
+
+    .tabel-cetak-wrapper th:nth-child(2),
+    .tabel-cetak-wrapper td:nth-child(2) {
+      white-space: normal !important;
+      overflow-wrap: break-word !important;
+    }
+
+    .tabel-cetak-wrapper td:nth-child(2) div {
+      font-size: 7.5px !important;
+      line-height: 1.08 !important;
+    }
+
+    .tabel-cetak-wrapper th:nth-child(4),
+    .tabel-cetak-wrapper td:nth-child(4) {
+      text-align: center !important;
+      white-space: nowrap !important;
+    }
+
+    .tabel-cetak-wrapper th:nth-child(5),
+    .tabel-cetak-wrapper td:nth-child(5) {
+      white-space: nowrap !important;
+      font-size: 7px !important;
+    }
+
+    .tabel-cetak-wrapper th:nth-child(6),
+    .tabel-cetak-wrapper td:nth-child(6) {
+      text-align: right !important;
+      white-space: nowrap !important;
     }
   }
 </style>
@@ -765,7 +800,7 @@
       </div>`;
   }
 
-  function renderPratinjauCetak() {
+function renderPratinjauCetak() {
     const wadah = document.getElementById("wadahPratinjauCetak");
     const printTabelWadah = document.getElementById("printTabelWadah");
     const printMetaInfo = document.getElementById("printMetaInfo");
@@ -833,29 +868,74 @@
 
       return `
         <tr class="hover:bg-sky-50/60">
-          <td class="py-2 px-2.5 text-center text-slate-600">${idx + 1}</td>
-          <td class="py-2 px-2.5 font-bold text-slate-900">
+          <td class="kol-no py-2 px-2.5 text-center text-slate-600">${idx + 1}</td>
+          <td class="kol-nama py-2 px-2.5 font-bold text-slate-900">
             <div>${nama}</div>
             <div class="text-[11px] font-normal text-slate-500">${alamat}</div>
           </td>
-          <td class="py-2 px-2.5 text-slate-700">${lhok}</td>
-          <td class="py-2 px-2.5 text-center font-semibold text-slate-800">${jenjang}</td>
-          <td class="py-2 px-2.5 font-mono text-slate-700">${rek}</td>
-          <td class="py-2 px-2.5 text-right font-bold text-sky-950">${formatAngkaJS(dana)}</td>
+          <td class="kol-lhok py-2 px-2.5 text-slate-700">${lhok}</td>
+          <td class="kol-jenjang py-2 px-2.5 text-center font-semibold text-slate-800">${jenjang}</td>
+          <td class="kol-rek py-2 px-2.5 font-mono text-slate-700">${rek}</td>
+          <td class="kol-dana py-2 px-2.5 text-right font-bold text-sky-950">${formatAngkaJS(dana)}</td>
         </tr>`;
     }).join("");
 
     const tabelHtml = `
       <div class="tabel-cetak-wrapper overflow-x-auto rounded-lg border border-sky-200">
         <table class="w-full text-left border-collapse text-xs">
+          <colgroup>
+            <col class="col-print-1">
+            <col class="col-print-2">
+            <col class="col-print-3">
+            <col class="col-print-4">
+            <col class="col-print-5">
+            <col class="col-print-6">
+          </colgroup>
           <thead>
             <tr class="bg-sky-700 text-white text-[10px] uppercase font-bold">
-              <th class="py-2 px-2.5 text-center w-10 no-wrap-print">No</th>
-              <th class="py-2 px-2.5">Nama Penerima &amp; Alamat</th>
-              <th class="py-2 px-2.5">Lhok</th>
-              <th class="py-2 px-2.5 text-center no-wrap-print">Jenjang</th>
-              <th class="py-2 px-2.5 no-wrap-print">No. Rekening</th>
-              <th class="py-2 px-2.5 text-right no-wrap-print">Jumlah Dana (Rp)</th>
+              <th class="kol-no py-2 px-2.5 text-center no-wrap-print">No</th>
+              <th class="kol-nama py-2 px-2.5">Nama Penerima &amp; Alamat</th>
+              <th class="kol-lhok py-2 px-2.5">Lhok</th>
+              <th class="kol-jenjang py-2 px-2.5 text-center no-wrap-print">Jenjang</th>
+              <th class="kol-rek py-2 px-2.5 no-wrap-print">No. Rekening</th>
+              <th class="kol-dana py-2 px-2.5 text-right no-wrap-print">Jumlah Dana (Rp)</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-200 bg-white">
+            ${barisHtml}
+            <tr class="bg-amber-50 font-bold text-amber-950 border-t-2 border-amber-300">
+              <td colspan="5" class="py-2 px-2.5 text-right uppercase text-[10px]">TOTAL (${rows.length} PENERIMA)</td>
+              <td class="py-2 px-2.5 text-right">${formatAngkaJS(totalDanaCetak)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>`;
+
+    if (wadah) {
+      wadah.innerHTML = `
+        <div class="flex flex-wrap items-center justify-between gap-2 text-xs">
+          <span class="font-bold text-sky-950">Pratinjau Cetak: ${rows.length} Penerima (${kabPilih})</span>
+          <span class="font-bold text-sky-900">Total Dana: Rp ${formatAngkaJS(totalDanaCetak)}</span>
+        </div>
+        ${tabelHtml}`;
+    }
+    if (printTabelWadah) {
+      printTabelWadah.innerHTML = tabelHtml;
+    }
+    perbaruiFooterCetak(rows, semPilih);
+  }
+
+    const tabelHtml = `
+      <div class="tabel-cetak-wrapper overflow-x-auto rounded-lg border border-sky-200">
+        <table class="w-full text-left border-collapse text-xs">
+          <thead>
+            <tr class="bg-sky-700 text-white text-[10px] uppercase font-bold">
+              <th class="kol-no py-2 px-2.5 text-center no-wrap-print">No</th>
+              <th class="kol-nama py-2 px-2.5">Nama Penerima &amp; Alamat</th>
+              <th class="kol-lhok py-2 px-2.5">Lhok</th>
+              <th class="kol-jenjang py-2 px-2.5 text-center no-wrap-print">Jenjang</th>
+              <th class="kol-rek py-2 px-2.5 no-wrap-print">No. Rekening</th>
+              <th class="kol-dana py-2 px-2.5 text-right no-wrap-print">Jumlah Dana (Rp)</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-200 bg-white">

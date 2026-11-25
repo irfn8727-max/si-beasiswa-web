@@ -56,6 +56,7 @@ def get_db_connection():
         **kwargs,
     )
 
+
 def cari_file_logo():
     if not os.path.isdir(IMG_DIR):
         return None
