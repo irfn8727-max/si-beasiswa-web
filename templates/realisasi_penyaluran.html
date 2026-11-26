@@ -406,13 +406,26 @@
     *::before,
     *::after {
       transition: none !important;
+      transition-property: none !important;
+      transition-duration: 0s !important;
+      transition-delay: 0s !important;
       animation: none !important;
+      animation-duration: 0s !important;
+      animation-delay: 0s !important;
+      scroll-behavior: auto !important;
     }
 
+    *,
+    *::before,
+    *::after,
     *:hover,
     *:active,
-    *:focus {
+    *:focus,
+    *:focus-visible {
       transform: none !important;
+      translate: none !important;
+      scale: none !important;
+      rotate: none !important;
     }
   }
 
