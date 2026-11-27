@@ -388,6 +388,45 @@ def ambil_penerima_by_status(status=None):
     rapikan_nomor_urut(hasil)
     return hasil
 
+def ambil_penerima_terkendali(kabupaten="", tampilkan_semua=False, status="AKTIF"):
+    kab_bersih = normalisasi_kabupaten(kabupaten or "")
+    if not kab_bersih and not tampilkan_semua:
+        return []
+
+    sql = """
+        SELECT
+            id,
+            tahun,
+            semester,
+            kabupaten_kota,
+            lhok,
+            nama_penerima,
+            alamat,
+            strata_pendidikan,
+            nomor_rekening,
+            jumlah_dana,
+            status_data,
+            tanggal_input
+        FROM tabel_penerima
+        WHERE UPPER(status_data) = %s
+    """
+    status_bersih = (status or "AKTIF").strip().upper()
+    params = [status_bersih]
+
+    if kab_bersih:
+        sql += " AND UPPER(kabupaten_kota) = %s"
+        params.append(kab_bersih.upper())
+
+    sql += " ORDER BY id ASC"
+
+    with get_db_connection() as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(sql, params)
+            rows = cur.fetchall()
+
+    hasil = [normalisasi_row_penerima(r) for r in rows]
+    rapikan_nomor_urut(hasil)
+    return hasil
 
 def muat_data():
     return ambil_penerima_by_status("AKTIF")
@@ -1021,8 +1060,6 @@ def dashboard():
 
 @app.route("/penerima", methods=["GET", "POST"])
 def penerima():
-    daftar = muat_data()
-
     if request.method == "POST":
         baris_baru = bangun_baris_dari_form(request.form)
         pesan_validasi = validasi_input_penerima(baris_baru)
@@ -1031,8 +1068,13 @@ def penerima():
             return redirect(url_for("penerima"))
 
         izinkan_sama = bool(request.form.get("izinkan_nama_sama"))
+        calon_sama = ambil_penerima_terkendali(
+            kabupaten=baris_baru["kabupaten_kota"],
+            tampilkan_semua=False,
+            status="AKTIF",
+        )
         data_sama = cari_data_sama(
-            daftar,
+            calon_sama,
             baris_baru["nama_penerima"],
             tahun=baris_baru["tahun"],
         )
@@ -1054,6 +1096,15 @@ def penerima():
         insert_penerima_db(baris_baru, status_data="AKTIF")
         flash("Data penerima berhasil disimpan ke PostgreSQL.", "success")
         return redirect(url_for("penerima"))
+
+    kabupaten_dipilih = request.args.get("kabupaten", "").strip()
+    tampilkan_semua = request.args.get("tampilkan_semua") == "1"
+
+    daftar = ambil_penerima_terkendali(
+        kabupaten=kabupaten_dipilih,
+        tampilkan_semua=tampilkan_semua,
+        status="AKTIF",
+    )
 
     kumpulan_tahun = {
         str(d.get("tahun", "") or "").strip()
@@ -1079,8 +1130,9 @@ def penerima():
         total_dana=total_dana,
         temuan_ganda=temuan_ganda,
         penerima_berulang=penerima_berulang,
+        kabupaten_dipilih=kabupaten_dipilih,
+        tampilkan_semua=tampilkan_semua,
     )
-
 
 @app.route("/penerima/edit/<row_id>", methods=["POST"])
 def edit_penerima(row_id):
