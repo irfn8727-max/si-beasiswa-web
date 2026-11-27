@@ -2,45 +2,29 @@ import csv
 import io
 import os
 import re
-import time
-import threading
 from decimal import Decimal
-from contextlib import contextmanager
-from flask import Flask, render_template, request, redirect, url_for, flash, session, g
+from flask import Flask, render_template, request, redirect, url_for, flash, session
 from werkzeug.security import check_password_hash, generate_password_hash
 import psycopg2
-from psycopg2.extras import RealDictCursor, execute_values
-from psycopg2.pool import ThreadedConnectionPool
+from psycopg2.extras import RealDictCursor
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("APP_SECRET_KEY", "si-beasiswa-nelayan-aceh-secret-key")
 
-
-@app.before_request
-def mulai_ukur_waktu():
-    g._start_time = time.perf_counter()
-
-
-@app.after_request
-def catat_durasi_request(response):
-    mulai = getattr(g, "_start_time", None)
-    if mulai is not None:
-        durasi_ms = (time.perf_counter() - mulai) * 1000
-        print(f"[PERF] {request.method} {request.path} -> {durasi_ms:.1f} ms", flush=True)
-    return response
-
-
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 IMG_DIR = os.path.join(BASE_DIR, "static", "img")
 
+# Konfigurasi PostgreSQL (db_beasiswa)
 DB_HOST = os.environ.get("PGHOST", "192.168.100.10")
 DB_PORT = int(os.environ.get("PGPORT", "5432"))
 DB_NAME = os.environ.get("PGDATABASE", "db_beasiswa")
 DB_USER = os.environ.get("PGUSER", "postgres")
 DB_PASSWORD = os.environ.get("PGPASSWORD", "adminserver123")
 
+# Ganti tulisan di bawah ini sesuai Nama Instansi / Yayasan Anda
 NAMA_INSTANSI = "YAYASAN PANGKAI MEUREUNOE ANEUK NELAYAN"
 
+# Kredensial login awal
 ADMIN_USERNAME = os.environ.get("APP_ADMIN_USER", "admin")
 ADMIN_PASSWORD_HASH = generate_password_hash(
     os.environ.get("APP_ADMIN_PASS", "AdminAceh2026!")
@@ -52,20 +36,17 @@ BENDAHARA_PASSWORD_HASH = generate_password_hash(
 )
 
 DATABASE_URL = os.environ.get("DATABASE_URL")
-DB_SSLMODE = os.environ.get("DB_SSLMODE")
-
-_POOL_LOCK = threading.Lock()
-_DB_POOL = None
-_LOGO_CACHE_LOADED = False
-_LOGO_CACHE_PATH = None
+DB_SSLMODE = os.environ.get("DB_SSLMODE")  # isi "require" di cloud jika diminta
 
 
-def _buat_koneksi_langsung():
+def get_db_connection():
     kwargs = {}
     if DB_SSLMODE:
         kwargs["sslmode"] = DB_SSLMODE
+
     if DATABASE_URL:
         return psycopg2.connect(DATABASE_URL, **kwargs)
+
     return psycopg2.connect(
         host=DB_HOST,
         port=DB_PORT,
@@ -76,75 +57,17 @@ def _buat_koneksi_langsung():
     )
 
 
-def _get_pool():
-    global _DB_POOL
-    if _DB_POOL is not None:
-        return _DB_POOL
-    with _POOL_LOCK:
-        if _DB_POOL is None:
-            kwargs = {"minconn": 1, "maxconn": 10}
-            if DB_SSLMODE:
-                kwargs["sslmode"] = DB_SSLMODE
-            if DATABASE_URL:
-                _DB_POOL = ThreadedConnectionPool(dsn=DATABASE_URL, **kwargs)
-            else:
-                _DB_POOL = ThreadedConnectionPool(
-                    host=DB_HOST,
-                    port=DB_PORT,
-                    dbname=DB_NAME,
-                    user=DB_USER,
-                    password=DB_PASSWORD,
-                    **kwargs,
-                )
-    return _DB_POOL
-
-
-@contextmanager
-def db_connection():
-    pool = _get_pool()
-    conn = pool.getconn()
-    try:
-        yield conn
-    except Exception:
-        try:
-            conn.rollback()
-        except Exception:
-            pass
-        raise
-    finally:
-        try:
-            if conn.closed:
-                pool.putconn(conn, close=True)
-            else:
-                pool.putconn(conn)
-        except Exception:
-            try:
-                conn.close()
-            except Exception:
-                pass
-
-
 def cari_file_logo():
-    global _LOGO_CACHE_LOADED, _LOGO_CACHE_PATH
-    if _LOGO_CACHE_LOADED:
-        return _LOGO_CACHE_PATH
-
-    hasil = None
-    if os.path.isdir(IMG_DIR):
-        prioritas = ["logo.png", "logo.jpg", "logo.jpeg", "logo.webp"]
-        for nama in prioritas:
-            if os.path.isfile(os.path.join(IMG_DIR, nama)):
-                hasil = f"img/{nama}"
-                break
-        if hasil is None:
-            for berkas in sorted(os.listdir(IMG_DIR)):
-                if berkas.lower().endswith((".png", ".jpg", ".jpeg", ".webp", ".gif")):
-                    hasil = f"img/{berkas}"
-                    break
-
-    _LOGO_CACHE_PATH = hasil
-    _LOGO_CACHE_LOADED = True
-    return _LOGO_CACHE_PATH
+    if not os.path.isdir(IMG_DIR):
+        return None
+    prioritas = ["logo.png", "logo.jpg", "logo.jpeg", "logo.webp"]
+    for nama in prioritas:
+        if os.path.isfile(os.path.join(IMG_DIR, nama)):
+            return f"img/{nama}"
+    for berkas in sorted(os.listdir(IMG_DIR)):
+        if berkas.lower().endswith((".png", ".jpg", ".jpeg", ".webp", ".gif")):
+            return f"img/{berkas}"
+    return None
 
 
 @app.context_processor
@@ -162,11 +85,20 @@ TARIF_JENJANG = [
     {"jenjang": "PERGURUAN TINGGI", "nominal": 900000},
 ]
 
+# 18 Kabupaten/Kota beserta nama-nama Lhok sesuai daftar resmi sistem
 PETA_KABUPATEN_LHOK = {
     "KOTA SABANG": [
-        "LHOK BALOHAN", "LHOK IE MEULEE", "LHOK KEUNEUKAI", "LHOK JABOI",
-        "LHOK ANOI ITAM", "LHOK BEURAWANG", "LHOK PASIRAN", "LHOK IBOIH",
-        "LHOK PRIA LAOT", "LHOK PAYA", "LHOK UJONG KAREUNG",
+        "LHOK BALOHAN",
+        "LHOK IE MEULEE",
+        "LHOK KEUNEUKAI",
+        "LHOK JABOI",
+        "LHOK ANOI ITAM",
+        "LHOK BEURAWANG",
+        "LHOK PASIRAN",
+        "LHOK IBOIH",
+        "LHOK PRIA LAOT",
+        "LHOK PAYA",
+        "LHOK UJONG KAREUNG",
     ],
     "KOTA BANDA ACEH": [
         "LHOK PASIE TIBANG / ALUE NAGA",
@@ -174,90 +106,194 @@ PETA_KABUPATEN_LHOK = {
         "LHOK KUALA CANGKOI / ULEE LHEUE",
     ],
     "KAB. ACEH BESAR": [
-        "LHOK LEUNGAH", "LHOK LAMPANAH", "LHOK KRUENG RAYA", "LHOK PASIE LAMNGA",
-        "LHOK KUALA GIGIENG / LAMBADA", "LHOK LAMTEUNGOH", "LHOK NGA", "LHOK LAMPUUK",
-        "LHOK LEUPUNG", "LHOK SANEY", "LHOK GLEE BRUEK",
-        "LHOK PULO BREUH UTARA/PULO ACEH", "LHOK LAMPUYANG PULO ACEH", "LHOK PULO NASI",
+        "LHOK LEUNGAH",
+        "LHOK LAMPANAH",
+        "LHOK KRUENG RAYA",
+        "LHOK PASIE LAMNGA",
+        "LHOK KUALA GIGIENG / LAMBADA",
+        "LHOK LAMTEUNGOH",
+        "LHOK NGA",
+        "LHOK LAMPUUK",
+        "LHOK LEUPUNG",
+        "LHOK SANEY",
+        "LHOK GLEE BRUEK",
+        "LHOK PULO BREUH UTARA/PULO ACEH",
+        "LHOK LAMPUYANG PULO ACEH",
+        "LHOK PULO NASI",
     ],
     "KAB. ACEH BARAT": [
-        "LHOK JOHAN PAHLAWAN", "LHOK SAMATIGA", "LHOK ARONGAN LAMBALEK", "LHOK MEUREUBOE",
+        "LHOK JOHAN PAHLAWAN",
+        "LHOK SAMATIGA",
+        "LHOK ARONGAN LAMBALEK",
+        "LHOK MEUREUBOE",
     ],
     "KAB. ACEH SELATAN": [
-        "LHOK TAPAKTUAN I", "LHOK TAPAKTUAN II", "LHOK SAMADUA I", "LHOK SAMADUA II",
-        "LHOK PAWOH SAWANG", "LHOK SAWANG BA'U", "LHOK LABUHAN TAROK", "LHOK KEUDE MEUKEK",
-        "LHOK PASIE RAJA", "LHOK KLUET UTARA/KUALA BA'U", "LHOK SUAK BAKONG",
-        "LHOK PASIE BAKONGAN", "LHOK BAKONGAN TIMUR", "LHOK KEUDE TRUMON",
-        "LHOK BULOH SEUMA", "LHOK LABUHAN HAJI TIMUR", "LHOK LABUHAN HAJI SELATAN",
-        "LHOK LABUHAN HAJI BARAT", "LHOK RANTAU BINUANG",
+        "LHOK TAPAKTUAN I",
+        "LHOK TAPAKTUAN II",
+        "LHOK SAMADUA I",
+        "LHOK SAMADUA II",
+        "LHOK PAWOH SAWANG",
+        "LHOK SAWANG BA'U",
+        "LHOK LABUHAN TAROK",
+        "LHOK KEUDE MEUKEK",
+        "LHOK PASIE RAJA",
+        "LHOK KLUET UTARA/KUALA BA'U",
+        "LHOK SUAK BAKONG",
+        "LHOK PASIE BAKONGAN",
+        "LHOK BAKONGAN TIMUR",
+        "LHOK KEUDE TRUMON",
+        "LHOK BULOH SEUMA",
+        "LHOK LABUHAN HAJI TIMUR",
+        "LHOK LABUHAN HAJI SELATAN",
+        "LHOK LABUHAN HAJI BARAT",
+        "LHOK RANTAU BINUANG",
     ],
     "KAB. ACEH JAYA": [
-        "LHOK BABAH NIPAH", "LHOK KRUET", "LHOK PATEK", "LHOK RIGAIH",
-        "LHOK CALANG", "LHOK TEUNOM", "LHOK PANGA", "LHOK KUALA DAYA",
-        "LHOK KUALA UNGA", "LHOK KELUANG", "LHOK LAMBEUSOI",
+        "LHOK BABAH NIPAH",
+        "LHOK KRUET",
+        "LHOK PATEK",
+        "LHOK RIGAIH",
+        "LHOK CALANG",
+        "LHOK TEUNOM",
+        "LHOK PANGA",
+        "LHOK KUALA DAYA",
+        "LHOK KUALA UNGA",
+        "LHOK KELUANG",
+        "LHOK LAMBEUSOI",
     ],
     "KAB. ABDYA": [
-        "LHOK SUSOH", "LHOK TANGAN-TANGAN", "LHOK MANGGENG",
-        "LHOK LEMBAH SABIL", "LHOK SUAK SETIA", "LHOK KUALA BATEE",
+        "LHOK SUSOH",
+        "LHOK TANGAN-TANGAN",
+        "LHOK MANGGENG",
+        "LHOK LEMBAH SABIL",
+        "LHOK SUAK SETIA",
+        "LHOK KUALA BATEE",
     ],
     "KAB. SIMEULUE": [
-        "LHOK SIMEULUE TIMUR", "LHOK SIMEULUE TENGAH", "LHOK TEUPAH BARAT",
-        "LHOK SALANG", "LHOK TEUPAH SELATAN", "LHOK TELUK DALAM",
-        "LHOK SIMEULUE BARAT", "LHOK ALAFAN", "LHOK TEUPAH TENGAH", "LHOK SIMEULUE CUT",
+        "LHOK SIMEULUE TIMUR",
+        "LHOK SIMEULUE TENGAH",
+        "LHOK TEUPAH BARAT",
+        "LHOK SALANG",
+        "LHOK TEUPAH SELATAN",
+        "LHOK TELUK DALAM",
+        "LHOK SIMEULUE BARAT",
+        "LHOK ALAFAN",
+        "LHOK TEUPAH TENGAH",
+        "LHOK SIMEULUE CUT",
     ],
     "KAB. NAGAN RAYA": [
-        "LHOK KUALA TRIPA", "LHOK KUALA TRANG", "LHOK KUALA TADU",
-        "LHOK KUALA TUHA", "LHOK KUALA SEUMAYAM", "LHOK PULO", "LHOK BABAH LHUENG",
+        "LHOK KUALA TRIPA",
+        "LHOK KUALA TRANG",
+        "LHOK KUALA TADU",
+        "LHOK KUALA TUHA",
+        "LHOK KUALA SEUMAYAM",
+        "LHOK PULO",
+        "LHOK BABAH LHUENG",
     ],
     "KAB. ACEH SINGKIL": [
-        "KOTA SINGKIL", "LHOK PULO SAROK", "LHOK KILANGAN", "LHOK TELUK AMBUN",
-        "LHOK UJUNG SINGKIL", "LHOK KAYU MENANG", "LHOK KUALA BARU SUNGAI",
-        "LHOK KUALA BARU LAUT", "LHOK SUKA JAYA", "LHOK GOSONG TELAGA TIMUR",
-        "LHOK GOSONG TELAGA UTARA", "LHOK GOSONG TELAGA SELATAN", "LHOK PULAU BALAI",
-        "LHOK PULAU BAGUK", "LHOK TELUK NIBUNG", "LHOK HALOBAN", "LHOK ASANTOLA",
-        "LHOK UJUNG SIALIT", "LHOK PULAU BANYAK / SUKA MAKMUR", "LHOK SITI AMBIA",
+        "KOTA SINGKIL",
+        "LHOK PULO SAROK",
+        "LHOK KILANGAN",
+        "LHOK TELUK AMBUN",
+        "LHOK UJUNG SINGKIL",
+        "LHOK KAYU MENANG",
+        "LHOK KUALA BARU SUNGAI",
+        "LHOK KUALA BARU LAUT",
+        "LHOK SUKA JAYA",
+        "LHOK GOSONG TELAGA TIMUR",
+        "LHOK GOSONG TELAGA UTARA",
+        "LHOK GOSONG TELAGA SELATAN",
+        "LHOK PULAU BALAI",
+        "LHOK PULAU BAGUK",
+        "LHOK TELUK NIBUNG",
+        "LHOK HALOBAN",
+        "LHOK ASANTOLA",
+        "LHOK UJUNG SIALIT",
+        "LHOK PULAU BANYAK / SUKA MAKMUR",
+        "LHOK SITI AMBIA",
     ],
     "KAB. ACEH TIMUR": [
-        "LHOK KUALA BIREM BAYEUN", "LHOK KUALA BAYEUN / RANTAU SELAMAT",
-        "LHOK KUALA PAREK / SUNGAI RAYA", "LHOK KUALA ALUE LHOK / PEUREULAK TIMUR",
-        "LHOK KUALA LEUGE / PEUREULAK KOTA", "LHOK KUALA BUGAK", "LHOK PEUREULAK BARAT",
-        "LHOK KUALA PEUDAWA", "LHOK IDI TIMUR", "LHOK KUALA IDI RAYEUK",
-        "LHOK KUALA IDI CUT / DARUL AMAN", "LHOK KUALA BAGOK / NURUSSALAM",
-        "LHOK KUALA GEULUMPANG / JULOK", "LHOK KUALA SIMPANG ULIM",
+        "LHOK KUALA BIREM BAYEUN",
+        "LHOK KUALA BAYEUN / RANTAU SELAMAT",
+        "LHOK KUALA PAREK / SUNGAI RAYA",
+        "LHOK KUALA ALUE LHOK / PEUREULAK TIMUR",
+        "LHOK KUALA LEUGE / PEUREULAK KOTA",
+        "LHOK KUALA BUGAK",
+        "LHOK PEUREULAK BARAT",
+        "LHOK KUALA PEUDAWA",
+        "LHOK IDI TIMUR",
+        "LHOK KUALA IDI RAYEUK",
+        "LHOK KUALA IDI CUT / DARUL AMAN",
+        "LHOK KUALA BAGOK / NURUSSALAM",
+        "LHOK KUALA GEULUMPANG / JULOK",
+        "LHOK KUALA SIMPANG ULIM",
         "LHOK KUALA KRUENG THO / MADAT",
     ],
     "KAB. ACEH UTARA": [
-        "KEC/LHOK MUARA BATU", "KEC/LHOK SYAMTALIRA BAYU", "KEC/LHOK SAMUDERA",
-        "KEC/LHOK TANAH PASIR", "KEC/LHOK SEUNUDDON", "KEC/LHOK JAMBO AYE",
-        "KEC/LHOK DEWANTARA", "KEC/LHOK LAPANG",
+        "KEC/LHOK MUARA BATU",
+        "KEC/LHOK SYAMTALIRA BAYU",
+        "KEC/LHOK SAMUDERA",
+        "KEC/LHOK TANAH PASIR",
+        "KEC/LHOK SEUNUDDON",
+        "KEC/LHOK JAMBO AYE",
+        "KEC/LHOK DEWANTARA",
+        "KEC/LHOK LAPANG",
     ],
     "KAB. PIDIE": [
-        "LHOK KUALA LHEUE / SIMPANG TIGA", "LHOK PASIE IE LEUBEU", "LHOK KUALA BEURABOE",
-        "LHOK BLANG RAYA", "LHOK KUALA TARI / KEMBANG TANJONG",
-        "LHOK TGK. DI LAWEUNG/MUARA TIGA", "LHOK KUALA PASIE BLANG ANOE / BATEE",
-        "LHOK KUALA PEUKAN BARO / KOTA SIGLI", "LHOK GEUNTENG BARAT",
-        "LHOK PASI BEURANDEH", "LHOK UJONG PIE",
+        "LHOK KUALA LHEUE / SIMPANG TIGA",
+        "LHOK PASIE IE LEUBEU",
+        "LHOK KUALA BEURABOE",
+        "LHOK BLANG RAYA",
+        "LHOK KUALA TARI / KEMBANG TANJONG",
+        "LHOK TGK. DI LAWEUNG/MUARA TIGA",
+        "LHOK KUALA PASIE BLANG ANOE / BATEE",
+        "LHOK KUALA PEUKAN BARO / KOTA SIGLI",
+        "LHOK GEUNTENG BARAT",
+        "LHOK PASI BEURANDEH",
+        "LHOK UJONG PIE",
     ],
     "KAB. ACEH TAMIANG": [
-        "LHOK MANYAK PAYED", "LHOK BENDAHARA", "LHOK SERUWAY", "LHOK BANDA MULIA",
+        "LHOK MANYAK PAYED",
+        "LHOK BENDAHARA",
+        "LHOK SERUWAY",
+        "LHOK BANDA MULIA",
     ],
     "KAB. BIREUEN": [
-        "LHOK KUALA SAMALANGA", "LHOK KUALA PANDRAH", "LHOK KUALA SIMPANG MAMPLAM",
-        "LHOK KUALA JEUNIEB", "LHOK KUALA PLIMBANG", "LHOK KUALA PEUDADA",
-        "LHOK KUALA JEUMPA", "LHOK KUALA RAJA", "LHOK KUALA JANGKA",
-        "LHOK KUALA CEURAPEE", "LHOK KUALA GANDAPURA",
+        "LHOK KUALA SAMALANGA",
+        "LHOK KUALA PANDRAH",
+        "LHOK KUALA SIMPANG MAMPLAM",
+        "LHOK KUALA JEUNIEB",
+        "LHOK KUALA PLIMBANG",
+        "LHOK KUALA PEUDADA",
+        "LHOK KUALA JEUMPA",
+        "LHOK KUALA RAJA",
+        "LHOK KUALA JANGKA",
+        "LHOK KUALA CEURAPEE",
+        "LHOK KUALA GANDAPURA",
     ],
     "KOTA LANGSA": [
-        "LHOK PUSONG / TEULAGA TUJOH", "LHOK SUNGAI LUENG / LANGSA TIMUR",
-        "LHOK KUALA LANGSA / LANGSA KOTA", "LHOK BIREM / LANGSA BARAT",
+        "LHOK PUSONG / TEULAGA TUJOH",
+        "LHOK SUNGAI LUENG / LANGSA TIMUR",
+        "LHOK KUALA LANGSA / LANGSA KOTA",
+        "LHOK BIREM / LANGSA BARAT",
     ],
     "KOTA LHOKSEUMAWE": [
-        "LHOK UJONG BLANG", "LHOK PUSONG", "LHOK BLANG MANGAT/MEURAKSA",
-        "LHOK BANDA SAKTI", "LHOK RANCONG",
+        "LHOK UJONG BLANG",
+        "LHOK PUSONG",
+        "LHOK BLANG MANGAT/MEURAKSA",
+        "LHOK BANDA SAKTI",
+        "LHOK RANCONG",
     ],
     "KAB. PIDIE JAYA": [
-        "LHOK KUALA KIRAN", "LHOK PASIE ARON", "LHOK ULIM", "LHOK MEUREUDU",
-        "LHOK LANCANG PARU", "LHOK PANTE RAJA", "LHOK MEURAH DUA",
-        "LHOK TRIENG GADENG", "LHOK KUALA BEURACAN",
+        "LHOK KUALA KIRAN",
+        "LHOK PASIE ARON",
+        "LHOK ULIM",
+        "LHOK MEUREUDU",
+        "LHOK LANCANG PARU",
+        "LHOK PANTE RAJA",
+        "LHOK MEURAH DUA",
+        "LHOK TRIENG GADENG",
+        "LHOK KUALA BEURACAN",
     ],
 }
 
@@ -275,21 +311,12 @@ def normalisasi_kabupaten(nama_kab):
     if inti == "ACEH BARAT DAYA":
         inti = "ABDYA"
 
-    kandidat = f"KOTA {inti}" if inti in DAFTAR_KOTA else f"KAB. {inti}"
+    if inti in DAFTAR_KOTA:
+        kandidat = f"KOTA {inti}"
+    else:
+        kandidat = f"KAB. {inti}"
+
     return kandidat if kandidat in PETA_KABUPATEN_LHOK else teks
-
-
-def normalisasi_strata(strata_teks):
-    s = str(strata_teks or "").strip().upper()
-    if s in ("PT", "PERGURUAN TINGGI", "KULIAH", "UNIVERSITAS", "S1", "D3"):
-        return "PERGURUAN TINGGI"
-    if s in ("SD", "MI"):
-        return "SD"
-    if s in ("SMP", "MTS"):
-        return "SMP"
-    if s in ("SMA", "SMK", "MA"):
-        return "SMA"
-    return s
 
 
 def bersihkan_angka(nilai):
@@ -308,206 +335,90 @@ def bersihkan_angka(nilai):
         return 0
 
 
-def hitung_dana_sesuai_semester(strata, semester):
-    strata_bersih = normalisasi_strata(strata)
-    semester_bersih = str(semester or "").strip().upper()
-    tarif_dasar = next(
-        (t["nominal"] for t in TARIF_JENJANG if t["jenjang"] == strata_bersih),
-        0,
-    )
-    pengali = 2 if semester_bersih == "1 + 2" else 1
-    return tarif_dasar * pengali
+def rapikan_nomor_urut(daftar):
+    for idx, baris in enumerate(daftar, start=1):
+        baris["no"] = idx
 
 
-def ekstrak_nama_penerima(nama_lengkap):
-    teks = re.sub(r"\s+", " ", str(nama_lengkap or "").strip().upper())
-    return teks.strip(" -–—.,") if teks else ""
+def normalisasi_row_penerima(row):
+    item = dict(row)
+    item["id"] = item.get("id")
+    item["tahun"] = str(item.get("tahun") or "").strip()
+    item["semester"] = str(item.get("semester") or "").strip()
+    item["kabupaten_kota"] = normalisasi_kabupaten(item.get("kabupaten_kota") or "")
+    item["lhok"] = str(item.get("lhok") or "").strip().upper()
+    item["nama_penerima"] = re.sub(r"\s+", " ", str(item.get("nama_penerima") or "").strip().upper())
+    item["alamat"] = str(item.get("alamat") or "").strip().upper()
+    item["strata_pendidikan"] = normalisasi_strata(item.get("strata_pendidikan") or "")
+    item["nomor_rekening"] = str(item.get("nomor_rekening") or "").strip()
+    item["jumlah_dana"] = bersihkan_angka(item.get("jumlah_dana") or 0)
+    item["status_data"] = str(item.get("status_data") or "AKTIF").strip().upper()
+    return item
 
 
-def kunci_duplikasi_penerima(nama_lengkap, tahun=""):
-    nama_bersih = ekstrak_nama_penerima(nama_lengkap)
-    tahun_bersih = re.sub(r"\s+", " ", str(tahun or "").strip().upper())
-    if not nama_bersih:
-        return None
-    return (tahun_bersih, nama_bersih)
-
-
-def hitung_ringkasan_sql(status=None, tahun="", kabupaten=""):
-    where = []
+def ambil_penerima_by_status(status=None):
+    sql = """
+        SELECT
+            id,
+            tahun,
+            semester,
+            kabupaten_kota,
+            lhok,
+            nama_penerima,
+            alamat,
+            strata_pendidikan,
+            nomor_rekening,
+            jumlah_dana,
+            status_data,
+            tanggal_input
+        FROM tabel_penerima
+    """
     params = []
-
     if status:
-        where.append("UPPER(status_data) = %s")
+        sql += " WHERE UPPER(status_data) = %s"
         params.append(status.strip().upper())
-    if tahun:
-        where.append("tahun = %s")
-        params.append(tahun.strip())
-    if kabupaten:
-        where.append("kabupaten_kota = %s")
-        params.append(kabupaten.strip())
+    sql += " ORDER BY id ASC"
 
-    clause = ("WHERE " + " AND ".join(where)) if where else ""
-
-    with db_connection() as conn:
+    with get_db_connection() as conn:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute(
-                f"""
-                SELECT
-                    COUNT(*)::bigint AS total_penerima,
-                    COALESCE(SUM(jumlah_dana), 0)::bigint AS total_dana
-                FROM tabel_penerima
-                {clause}
-                """,
-                params,
-            )
-            tot = cur.fetchone() or {"total_penerima": 0, "total_dana": 0}
-
-            cur.execute(
-                f"""
-                SELECT
-                    strata_pendidikan,
-                    COUNT(*)::bigint AS jumlah,
-                    COALESCE(SUM(jumlah_dana), 0)::bigint AS dana
-                FROM tabel_penerima
-                {clause}
-                GROUP BY strata_pendidikan
-                """,
-                params,
-            )
-            rows_jenjang = cur.fetchall()
-
-            cur.execute(
-                f"""
-                SELECT
-                    COALESCE(NULLIF(kabupaten_kota, ''), 'TIDAK TERISI') AS kabupaten,
-                    COUNT(*)::bigint AS jumlah_penerima,
-                    COALESCE(SUM(jumlah_dana), 0)::bigint AS total_dana,
-                    COALESCE(SUM(CASE WHEN UPPER(TRIM(semester)) = '1 + 2' THEN 1 ELSE 0 END), 0)::bigint AS sudah_penuh,
-                    COALESCE(SUM(CASE WHEN UPPER(TRIM(semester)) <> '1 + 2' THEN 1 ELSE 0 END), 0)::bigint AS belum_penuh
-                FROM tabel_penerima
-                {clause}
-                GROUP BY COALESCE(NULLIF(kabupaten_kota, ''), 'TIDAK TERISI')
-                ORDER BY kabupaten
-                """,
-                params,
-            )
-            rows_kab = cur.fetchall()
-
-    peta_j = {normalisasi_strata(r["strata_pendidikan"]): r for r in rows_jenjang}
-    rekap_jenjang = []
-    for item in TARIF_JENJANG:
-        j = item["jenjang"]
-        r = peta_j.get(j)
-        rekap_jenjang.append({
-            "jenjang": j,
-            "nominal": item["nominal"],
-            "jumlah_penerima": int(r["jumlah"]) if r else 0,
-            "total_dana": int(r["dana"]) if r else 0,
-        })
-
-    rekap_kabupaten = [
-        {
-            "kabupaten": r["kabupaten"],
-            "jumlah_penerima": int(r["jumlah_penerima"]),
-            "total_dana": int(r["total_dana"]),
-            "belum_penuh": int(r["belum_penuh"]),
-            "sudah_penuh": int(r["sudah_penuh"]),
-        }
-        for r in rows_kab
-    ]
-
-    return (
-        rekap_jenjang,
-        int(tot["total_penerima"]),
-        int(tot["total_dana"]),
-        rekap_kabupaten,
-    )
-
-
-def ambil_penerima_halaman(
-    status="AKTIF",
-    tahun="",
-    kabupaten="",
-    q="",
-    limit=50,
-    offset=0,
-):
-    where = []
-    params = []
-
-    if status:
-        where.append("UPPER(status_data) = %s")
-        params.append(status.strip().upper())
-    if tahun:
-        where.append("tahun = %s")
-        params.append(tahun.strip())
-    if kabupaten:
-        where.append("kabupaten_kota = %s")
-        params.append(kabupaten.strip())
-    if q:
-        where.append("(UPPER(nama_penerima) LIKE %s OR nomor_rekening LIKE %s OR UPPER(lhok) LIKE %s)")
-        pola = f"%{q.strip().upper()}%"
-        params.extend([pola, f"%{q.strip()}%", pola])
-
-    clause = ("WHERE " + " AND ".join(where)) if where else ""
-
-    with db_connection() as conn:
-        with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute(
-                f"SELECT COUNT(*)::bigint AS total FROM tabel_penerima {clause}",
-                params,
-            )
-            total_baris = int((cur.fetchone() or {"total": 0})["total"])
-
-            cur.execute(
-                f"""
-                SELECT
-                    id, tahun, semester, kabupaten_kota, lhok,
-                    nama_penerima, alamat, strata_pendidikan,
-                    nomor_rekening, jumlah_dana, status_data, tanggal_input
-                FROM tabel_penerima
-                {clause}
-                ORDER BY id DESC
-                LIMIT %s OFFSET %s
-                """,
-                params + [int(limit), int(offset)],
-            )
+            cur.execute(sql, params)
             rows = cur.fetchall()
 
-    hasil = []
-    for idx, r in enumerate(rows, start=int(offset) + 1):
-        item = dict(r)
-        item["no"] = idx
-        item["jumlah_dana"] = bersihkan_angka(item.get("jumlah_dana", 0))
-        hasil.append(item)
-
-    return hasil, total_baris
+    hasil = [normalisasi_row_penerima(r) for r in rows]
+    rapikan_nomor_urut(hasil)
+    return hasil
 
 
-def ambil_daftar_tahun_db(status=None):
-    sql = "SELECT DISTINCT tahun FROM tabel_penerima WHERE COALESCE(TRIM(tahun), '') <> ''"
-    params = []
-    if status:
-        sql += " AND UPPER(status_data) = %s"
-        params.append(status.strip().upper())
-    sql += " ORDER BY tahun DESC"
+def muat_data():
+    return ambil_penerima_by_status("AKTIF")
 
-    with db_connection() as conn:
-        with conn.cursor() as cur:
-            cur.execute(sql, params)
-            return [str(r[0]).strip() for r in cur.fetchall() if str(r[0] or "").strip()]
+
+def muat_arsip():
+    return ambil_penerima_by_status("ARSIP")
+
+
+def muat_semua_penerima():
+    return ambil_penerima_by_status(None)
 
 
 def insert_penerima_db(baris, status_data="AKTIF"):
     sql = """
         INSERT INTO tabel_penerima (
-            tahun, semester, kabupaten_kota, lhok, nama_penerima,
-            alamat, strata_pendidikan, nomor_rekening, jumlah_dana, status_data
+            tahun,
+            semester,
+            kabupaten_kota,
+            lhok,
+            nama_penerima,
+            alamat,
+            strata_pendidikan,
+            nomor_rekening,
+            jumlah_dana,
+            status_data
         )
         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         RETURNING id
     """
-    with db_connection() as conn:
+    with get_db_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 sql,
@@ -533,12 +444,18 @@ def update_penerima_db(row_id, baris):
     sql = """
         UPDATE tabel_penerima
         SET
-            tahun = %s, semester = %s, kabupaten_kota = %s, lhok = %s,
-            nama_penerima = %s, alamat = %s, strata_pendidikan = %s,
-            nomor_rekening = %s, jumlah_dana = %s
+            tahun = %s,
+            semester = %s,
+            kabupaten_kota = %s,
+            lhok = %s,
+            nama_penerima = %s,
+            alamat = %s,
+            strata_pendidikan = %s,
+            nomor_rekening = %s,
+            jumlah_dana = %s
         WHERE id = %s
     """
-    with db_connection() as conn:
+    with get_db_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 sql,
@@ -561,7 +478,7 @@ def update_penerima_db(row_id, baris):
 
 
 def delete_penerima_db(row_id):
-    with db_connection() as conn:
+    with get_db_connection() as conn:
         with conn.cursor() as cur:
             cur.execute("DELETE FROM tabel_penerima WHERE id = %s", (int(row_id),))
             deleted = cur.rowcount
@@ -575,7 +492,7 @@ def update_status_penerima_db(row_ids, status_baru):
     bersih_ids = [int(i) for i in row_ids if str(i).isdigit()]
     if not bersih_ids:
         return 0
-    with db_connection() as conn:
+    with get_db_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 "UPDATE tabel_penerima SET status_data = %s WHERE id = ANY(%s)",
@@ -586,61 +503,162 @@ def update_status_penerima_db(row_ids, status_baru):
     return jumlah
 
 
-def cari_duplikat_db(nama_penerima, tahun="", abaikan_id=None, status="AKTIF"):
-    nama_bersih = ekstrak_nama_penerima(nama_penerima)
+def hitung_dana_sesuai_semester(strata, semester):
+    strata_bersih = str(strata or "").strip().upper()
+    semester_bersih = str(semester or "").strip().upper()
+    tarif_dasar = next(
+        (t["nominal"] for t in TARIF_JENJANG if t["jenjang"] == strata_bersih),
+        0,
+    )
+    pengali = 2 if semester_bersih == "1 + 2" else 1
+    return tarif_dasar * pengali
+
+
+def ekstrak_nama_penerima(nama_lengkap):
+    teks = re.sub(r"\s+", " ", str(nama_lengkap or "").strip().upper())
+    if not teks:
+        return ""
+    return teks.strip(" -–—.,")
+
+
+def kunci_duplikasi_penerima(nama_lengkap, tahun=""):
+    nama_bersih = ekstrak_nama_penerima(nama_lengkap)
+    tahun_bersih = re.sub(r"\s+", " ", str(tahun or "").strip().upper())
     if not nama_bersih:
+        return None
+    return (tahun_bersih, nama_bersih)
+
+
+def cari_data_sama(daftar, nama_lengkap, tahun="", abaikan_id=None):
+    kunci_target = kunci_duplikasi_penerima(nama_lengkap, tahun)
+    if not kunci_target:
         return []
-    sql = """
-        SELECT id, kabupaten_kota, lhok, semester, tahun
-        FROM tabel_penerima
-        WHERE UPPER(status_data) = %s
-          AND UPPER(TRIM(nama_penerima)) = %s
-    """
-    params = [status.upper(), nama_bersih]
-    if tahun:
-        sql += " AND tahun = %s"
-        params.append(tahun.strip())
-    if abaikan_id is not None:
-        sql += " AND id <> %s"
-        params.append(int(abaikan_id))
-    sql += " LIMIT 20"
 
-    with db_connection() as conn:
-        with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute(sql, params)
-            return cur.fetchall()
+    tahun_target, nama_target = kunci_target
+    hasil_sama = []
+    for baris in daftar:
+        if abaikan_id is not None and str(baris.get("id")) == str(abaikan_id):
+            continue
+        kunci_baris = kunci_duplikasi_penerima(
+            baris.get("nama_penerima", ""), baris.get("tahun", "")
+        )
+        if not kunci_baris:
+            continue
+        tahun_baris, nama_baris = kunci_baris
+        if nama_baris == nama_target and (not tahun_target or tahun_baris == tahun_target):
+            hasil_sama.append(baris)
+    return hasil_sama
 
 
-def deteksi_ganda_sql(tahun="", kabupaten="", status="AKTIF", batas=100):
-    where = ["UPPER(status_data) = %s", "COALESCE(TRIM(nama_penerima), '') <> ''"]
-    params = [status.upper()]
-    if tahun:
-        where.append("tahun = %s")
-        params.append(tahun.strip())
-    if kabupaten:
-        where.append("kabupaten_kota = %s")
-        params.append(kabupaten.strip())
+def deteksi_penerima_ganda(daftar):
+    kelompok = {}
+    for idx, baris in enumerate(daftar, start=1):
+        kunci = kunci_duplikasi_penerima(
+            baris.get("nama_penerima", ""), baris.get("tahun", "")
+        )
+        if not kunci:
+            continue
+        kelompok.setdefault(kunci, []).append((idx, baris))
 
-    clause = "WHERE " + " AND ".join(where)
-    with db_connection() as conn:
-        with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute(
-                f"""
-                SELECT
-                    COALESCE(NULLIF(tahun, ''), 'TANPA TAHUN') AS tahun,
-                    UPPER(TRIM(nama_penerima)) AS nama,
-                    COUNT(*)::int AS jumlah,
-                    COALESCE(SUM(jumlah_dana), 0)::bigint AS total_dana
-                FROM tabel_penerima
-                {clause}
-                GROUP BY COALESCE(NULLIF(tahun, ''), 'TANPA TAHUN'), UPPER(TRIM(nama_penerima))
-                HAVING COUNT(*) > 1
-                ORDER BY jumlah DESC, nama ASC
-                LIMIT %s
-                """,
-                params + [int(batas)],
-            )
-            return cur.fetchall()
+    temuan_ganda = []
+    for (tahun, nama_bersih), anggota in kelompok.items():
+        if len(anggota) > 1:
+            temuan_ganda.append({
+                "tahun": tahun or "TANPA TAHUN",
+                "nama": nama_bersih,
+                "jumlah": len(anggota),
+                "baris": [
+                    {
+                        "no": b.get("no") or no_urut,
+                        "id": b.get("id"),
+                        "nama_asli": b.get("nama_penerima", ""),
+                        "kabupaten": b.get("kabupaten_kota", ""),
+                        "lhok": b.get("lhok", ""),
+                        "semester": b.get("semester", ""),
+                        "strata": b.get("strata_pendidikan", ""),
+                        "jumlah_dana": bersihkan_angka(b.get("jumlah_dana", 0)),
+                    }
+                    for no_urut, b in anggota
+                ],
+            })
+
+    temuan_ganda.sort(key=lambda x: (x["tahun"], x["nama"]))
+    return temuan_ganda
+
+
+def hitung_penerima_berulang(daftar):
+    if not daftar:
+        return []
+
+    kelompok_nama = {}
+    for baris in daftar:
+        if not isinstance(baris, dict):
+            continue
+
+        nama_asli = re.sub(r"\s+", " ", str(baris.get("nama_penerima", "")).strip())
+        kunci_nama = ekstrak_nama_penerima(nama_asli)
+        if not kunci_nama:
+            continue
+
+        if kunci_nama not in kelompok_nama:
+            kelompok_nama[kunci_nama] = {
+                "nama": nama_asli.upper(),
+                "jumlah_kemunculan": 0,
+                "daftar_tahun": [],
+                "daftar_jenjang": [],
+                "riwayat_tahun_jenjang": [],
+                "daftar_kabupaten": [],
+                "daftar_lhok": [],
+                "daftar_alamat": [],
+                "total_dana": 0,
+            }
+
+        entry = kelompok_nama[kunci_nama]
+        entry["jumlah_kemunculan"] += 1
+        entry["total_dana"] += bersihkan_angka(baris.get("jumlah_dana", 0))
+
+        tahun_val = str(baris.get("tahun", "")).strip()
+        if tahun_val and tahun_val not in entry["daftar_tahun"]:
+            entry["daftar_tahun"].append(tahun_val)
+
+        jenjang_val = normalisasi_strata(baris.get("strata_pendidikan", ""))
+        if jenjang_val and jenjang_val not in entry["daftar_jenjang"]:
+            entry["daftar_jenjang"].append(jenjang_val)
+
+        if tahun_val and jenjang_val:
+            label_pasangan = f"{tahun_val} - {jenjang_val}"
+        elif tahun_val:
+            label_pasangan = tahun_val
+        elif jenjang_val:
+            label_pasangan = jenjang_val
+        else:
+            label_pasangan = ""
+
+        if label_pasangan and label_pasangan not in entry["riwayat_tahun_jenjang"]:
+            entry["riwayat_tahun_jenjang"].append(label_pasangan)
+
+        kab_val = normalisasi_kabupaten(baris.get("kabupaten_kota", ""))
+        if kab_val and kab_val not in entry["daftar_kabupaten"]:
+            entry["daftar_kabupaten"].append(kab_val)
+
+        lhok_val = re.sub(r"\s+", " ", str(baris.get("lhok", "")).strip())
+        if lhok_val and lhok_val not in entry["daftar_lhok"]:
+            entry["daftar_lhok"].append(lhok_val)
+
+        alamat_val = re.sub(r"\s+", " ", str(baris.get("alamat", "")).strip())
+        if alamat_val and alamat_val not in entry["daftar_alamat"]:
+            entry["daftar_alamat"].append(alamat_val)
+
+    hasil_berulang = []
+    for data_penerima in kelompok_nama.values():
+        if data_penerima["jumlah_kemunculan"] > 1:
+            data_penerima["lintas_tahun"] = len(data_penerima["daftar_tahun"]) > 1
+            hasil_berulang.append(data_penerima)
+
+    hasil_berulang.sort(
+        key=lambda x: (-x["jumlah_kemunculan"], -x["total_dana"], x["nama"])
+    )
+    return hasil_berulang
 
 
 def cocok_semester_bank(semester_baris, semester_filter):
@@ -648,11 +666,25 @@ def cocok_semester_bank(semester_baris, semester_filter):
         return True
     sem_baris = str(semester_baris or "").strip().upper()
     sem_pilih = str(semester_filter or "").strip().upper()
+
     if sem_pilih == "1 GANJIL":
         return sem_baris in ("1 GANJIL", "1 (GANJIL", "1 (GANJIL)", "1 + 2")
     if sem_pilih == "2 GENAP":
         return sem_baris in ("2 GENAP", "2 (GENAP)", "2 (GENAP", "1 + 2")
     return sem_baris == sem_pilih
+
+
+def normalisasi_strata(strata_teks):
+    s = str(strata_teks or "").strip().upper()
+    if s in ("PT", "PERGURUAN TINGGI", "KULIAH", "UNIVERSITAS", "S1", "D3"):
+        return "PERGURUAN TINGGI"
+    if s in ("SD", "MI"):
+        return "SD"
+    if s in ("SMP", "MTS"):
+        return "SMP"
+    if s in ("SMA", "SMK", "MA"):
+        return "SMA"
+    return s
 
 
 def bentuk_baris_import(sel, tahun_bawaan="", semester_bawaan="", paksa_hitung_dana=False):
@@ -662,7 +694,12 @@ def bentuk_baris_import(sel, tahun_bawaan="", semester_bawaan="", paksa_hitung_d
 
     first_upper = bersih[0].upper()
     if first_upper in ("NO", "TAHUN", "ID") and len(bersih) >= 2 and str(bersih[1]).upper() in (
-        "TAHUN", "SEMESTER", "KABUPATEN", "KABUPATEN/KOTA", "KABUPATEN_KOTA", "NO",
+        "TAHUN",
+        "SEMESTER",
+        "KABUPATEN",
+        "KABUPATEN/KOTA",
+        "KABUPATEN_KOTA",
+        "NO",
     ):
         return None
 
@@ -684,7 +721,7 @@ def bentuk_baris_import(sel, tahun_bawaan="", semester_bawaan="", paksa_hitung_d
     semester = ambil(1) or semester_bawaan
     kabupaten_kota = normalisasi_kabupaten(ambil(2))
     lhok = ambil(3).upper()
-    nama_penerima = ekstrak_nama_penerima(ambil(4))
+    nama_penerima = re.sub(r"\s+", " ", ambil(4).upper()).strip()
     alamat = ambil(5).upper()
     strata_pendidikan = normalisasi_strata(ambil(6))
     nomor_rekening = ambil(7).strip()
@@ -706,7 +743,7 @@ def bentuk_baris_import(sel, tahun_bawaan="", semester_bawaan="", paksa_hitung_d
         "no": 0,
         "tahun": tahun.strip(),
         "semester": semester.strip(),
-        "kabupaten_kota": kabupaten_kota or "TIDAK TERISI",
+        "kabupaten_kota": kabupaten_kota,
         "lhok": lhok,
         "nama_penerima": nama_penerima,
         "alamat": alamat,
@@ -774,12 +811,58 @@ def format_rupiah(angka):
     return f"{nilai:,}".replace(",", ".")
 
 
+def hitung_rekap(daftar):
+    rekap_jenjang = []
+    total_penerima = 0
+    total_dana = 0
+
+    for item in TARIF_JENJANG:
+        jenjang = item["jenjang"]
+        nominal = item["nominal"]
+        cocok = [d for d in daftar if str(d.get("strata_pendidikan", "")).upper() == jenjang]
+        jumlah = len(cocok)
+        dana_jenjang = sum(bersihkan_angka(d.get("jumlah_dana", 0)) for d in cocok)
+
+        rekap_jenjang.append({
+            "jenjang": jenjang,
+            "nominal": nominal,
+            "jumlah_penerima": jumlah,
+            "total_dana": dana_jenjang,
+        })
+        total_penerima += jumlah
+        total_dana += dana_jenjang
+
+    peta_kab = {}
+    for d in daftar:
+        kab = normalisasi_kabupaten(d.get("kabupaten_kota", "")) or "TIDAK TERISI"
+        sem = str(d.get("semester", "")).strip().upper()
+        dana_baris = bersihkan_angka(d.get("jumlah_dana", 0))
+        if kab not in peta_kab:
+            peta_kab[kab] = {
+                "kabupaten": kab,
+                "jumlah_penerima": 0,
+                "total_dana": 0,
+                "belum_penuh": 0,
+                "sudah_penuh": 0,
+            }
+        peta_kab[kab]["jumlah_penerima"] += 1
+        peta_kab[kab]["total_dana"] += dana_baris
+        if sem == "1 + 2":
+            peta_kab[kab]["sudah_penuh"] += 1
+        else:
+            peta_kab[kab]["belum_penuh"] += 1
+
+    rekap_kabupaten = sorted(peta_kab.values(), key=lambda x: x["kabupaten"])
+
+    return rekap_jenjang, total_penerima, total_dana, rekap_kabupaten
+
+
 def bangun_baris_dari_form(form_data, existing_id=None):
     tahun = form_data.get("tahun", "").strip()
     semester = form_data.get("semester", "").strip()
     kabupaten_kota = normalisasi_kabupaten(form_data.get("kabupaten", "") or form_data.get("kabupaten_kota", ""))
     lhok = form_data.get("lhok", "").strip().upper()
-    nama_penerima = ekstrak_nama_penerima(form_data.get("nama", "") or form_data.get("nama_penerima", ""))
+    nama_penerima = re.sub(r"\s+", " ", (form_data.get("nama", "") or form_data.get("nama_penerima", "")).strip().upper())
     alamat = form_data.get("alamat", "").strip().upper()
     strata_pendidikan = normalisasi_strata(form_data.get("strata", "") or form_data.get("strata_pendidikan", ""))
     nomor_rekening = (form_data.get("nomor_rekenig", "") or form_data.get("nomor_rekening", "")).strip()
@@ -860,7 +943,6 @@ def login():
 
     return render_template("login.html")
 
-
 @app.route("/logout")
 def logout():
     session.clear()
@@ -871,30 +953,51 @@ def logout():
 @app.route("/")
 @app.route("/dashboard")
 def dashboard():
+    daftar_aktif_raw = muat_data()
+    daftar_arsip_raw = muat_arsip()
+    gabungan = daftar_aktif_raw + daftar_arsip_raw
+
     tahun_dipilih = request.args.get("tahun", "").strip()
     kab_arg = request.args.get("kab", "").strip()
     kab_dipilih = "" if kab_arg.upper() == "SEMUA" else normalisasi_kabupaten(kab_arg)
     if kab_dipilih not in PETA_KABUPATEN_LHOK:
         kab_dipilih = ""
 
-    daftar_tahun = ambil_daftar_tahun_db()
-    _, total_aktif_saja, _, _ = hitung_ringkasan_sql(status="AKTIF")
-    _, total_arsip_saja, _, _ = hitung_ringkasan_sql(status="ARSIP")
+    daftar_tahun = sorted(
+        {str(d.get("tahun", "") or "").strip() for d in gabungan if str(d.get("tahun", "") or "").strip()},
+        reverse=True,
+    )
 
-    _, _, _, rekap_kab_tahun = hitung_ringkasan_sql(tahun=tahun_dipilih)
-    peta_jumlah_kab = {item["kabupaten"]: item["jumlah_penerima"] for item in rekap_kab_tahun}
+    if tahun_dipilih:
+        daftar_tahun_aktif = [
+            d for d in gabungan if str(d.get("tahun", "") or "").strip() == tahun_dipilih
+        ]
+    else:
+        daftar_tahun_aktif = gabungan
+
+    _, _, _, rekap_kab_semua = hitung_rekap(daftar_tahun_aktif)
+    peta_jumlah_kab = {item["kabupaten"]: item["jumlah_penerima"] for item in rekap_kab_semua}
 
     tombol_kabupaten = [
-        {"kabupaten": nama_kab, "jumlah_penerima": peta_jumlah_kab.get(nama_kab, 0)}
+        {
+            "kabupaten": nama_kab,
+            "jumlah_penerima": peta_jumlah_kab.get(nama_kab, 0),
+        }
         for nama_kab in PETA_KABUPATEN_LHOK.keys()
     ]
 
-    rekap_jenjang, total_penerima, total_dana, rekap_kabupaten = hitung_ringkasan_sql(
-        tahun=tahun_dipilih,
-        kabupaten=kab_dipilih,
-    )
-    temuan_ganda = deteksi_ganda_sql(tahun=tahun_dipilih, kabupaten=kab_dipilih, batas=100)
-    jumlah_kab_aktif = sum(1 for k in rekap_kab_tahun if k["jumlah_penerima"] > 0)
+    if kab_dipilih:
+        daftar_aktif = [
+            d for d in daftar_tahun_aktif
+            if normalisasi_kabupaten(d.get("kabupaten_kota", "")) == kab_dipilih
+        ]
+    else:
+        daftar_aktif = daftar_tahun_aktif
+
+    rekap_jenjang, total_penerima, total_dana, rekap_kabupaten = hitung_rekap(daftar_aktif)
+    temuan_ganda = deteksi_penerima_ganda(daftar_aktif)
+    penerima_berulang = hitung_penerima_berulang(daftar_aktif)
+    jumlah_kab_aktif = sum(1 for k in rekap_kab_semua if k["jumlah_penerima"] > 0)
 
     return render_template(
         "dashboard.html",
@@ -908,14 +1011,18 @@ def dashboard():
         tahun_dipilih=tahun_dipilih,
         kab_dipilih=kab_dipilih,
         tombol_kabupaten=tombol_kabupaten,
-        total_aktif_saja=total_aktif_saja,
-        total_arsip_saja=total_arsip_saja,
+        daftar_aktif=daftar_aktif,
+        total_aktif_saja=len(daftar_aktif_raw),
+        total_arsip_saja=len(daftar_arsip_raw),
         temuan_ganda=temuan_ganda,
+        penerima_berulang=penerima_berulang,
     )
 
 
 @app.route("/penerima", methods=["GET", "POST"])
 def penerima():
+    daftar = muat_data()
+
     if request.method == "POST":
         baris_baru = bangun_baris_dari_form(request.form)
         pesan_validasi = validasi_input_penerima(baris_baru)
@@ -924,10 +1031,10 @@ def penerima():
             return redirect(url_for("penerima"))
 
         izinkan_sama = bool(request.form.get("izinkan_nama_sama"))
-        data_sama = cari_duplikat_db(
+        data_sama = cari_data_sama(
+            daftar,
             baris_baru["nama_penerima"],
             tahun=baris_baru["tahun"],
-            status="AKTIF",
         )
 
         if data_sama and not izinkan_sama:
@@ -946,74 +1053,54 @@ def penerima():
 
         insert_penerima_db(baris_baru, status_data="AKTIF")
         flash("Data penerima berhasil disimpan ke PostgreSQL.", "success")
-        return redirect(url_for("penerima", kab=baris_baru["kabupaten_kota"], tahun=baris_baru["tahun"]))
+        return redirect(url_for("penerima"))
 
-    tahun_dipilih = request.args.get("tahun", "").strip()
-    kab_arg = request.args.get("kab", "").strip()
-    kab_dipilih = "" if kab_arg.upper() == "SEMUA" else normalisasi_kabupaten(kab_arg)
-    if kab_dipilih and kab_dipilih not in PETA_KABUPATEN_LHOK:
-        kab_dipilih = ""
-
-    q = (request.args.get("q") or "").strip()
-    halaman = max(1, int(request.args.get("page", 1) or 1))
-    per_halaman = max(10, min(200, int(request.args.get("per_page", 50) or 50)))
-    offset = (halaman - 1) * per_halaman
-
-    rekap_jenjang, total_keseluruhan, total_dana_keseluruhan, rekap_kabupaten = hitung_ringkasan_sql(
-        status="AKTIF",
-        tahun=tahun_dipilih,
-    )
-
-    if not kab_dipilih and not q and rekap_kabupaten:
-        kab_dipilih = rekap_kabupaten[0]["kabupaten"]
-
-    daftar_halaman, total_terfilter = ambil_penerima_halaman(
-        status="AKTIF",
-        tahun=tahun_dipilih,
-        kabupaten=kab_dipilih,
-        q=q,
-        limit=per_halaman,
-        offset=offset,
-    )
-
-    kumpulan_tahun = set(ambil_daftar_tahun_db(status="AKTIF"))
+    kumpulan_tahun = {
+        str(d.get("tahun", "") or "").strip()
+        for d in daftar
+        if str(d.get("tahun", "") or "").strip()
+    }
     kumpulan_tahun.update(["2026/2027", "2025/2026", "2024/2025"])
     daftar_tahun = sorted(kumpulan_tahun, reverse=True)
-    temuan_ganda = deteksi_ganda_sql(tahun=tahun_dipilih, kabupaten=kab_dipilih, status="AKTIF", batas=100)
+
+    rekap_jenjang, total_penerima, total_dana, rekap_kabupaten = hitung_rekap(daftar)
+    temuan_ganda = deteksi_penerima_ganda(daftar)
+    penerima_berulang = hitung_penerima_berulang(daftar)
 
     return render_template(
         "penerima.html",
         data_jenjang=TARIF_JENJANG,
         peta_kabupaten_lhok=PETA_KABUPATEN_LHOK,
         daftar_tahun=daftar_tahun,
-        tahun_dipilih=tahun_dipilih,
-        kab_dipilih=kab_dipilih,
-        q=q,
-        halaman=halaman,
-        per_halaman=per_halaman,
-        total_terfilter=total_terfilter,
         rekap_jenjang=rekap_jenjang,
         rekap_kabupaten=rekap_kabupaten,
-        daftar_penerima=daftar_halaman,
-        total_terdaftar=total_keseluruhan,
-        total_dana=total_dana_keseluruhan,
+        daftar_penerima=daftar,
+        total_terdaftar=total_penerima,
+        total_dana=total_dana,
         temuan_ganda=temuan_ganda,
+        penerima_berulang=penerima_berulang,
     )
 
 
 @app.route("/penerima/edit/<row_id>", methods=["POST"])
 def edit_penerima(row_id):
+    daftar = muat_data()
+    target = next((b for b in daftar if str(b.get("id")) == str(row_id)), None)
+    if target is None:
+        flash("Data penerima yang ingin diperbarui tidak ditemukan.", "warning")
+        return redirect(url_for("penerima"))
+
     baris_diperbarui = bangun_baris_dari_form(request.form, existing_id=row_id)
     pesan_validasi = validasi_input_penerima(baris_diperbarui)
     if pesan_validasi:
         flash(pesan_validasi, "warning")
         return redirect(url_for("penerima"))
 
-    data_sama = cari_duplikat_db(
+    data_sama = cari_data_sama(
+        daftar,
         baris_diperbarui["nama_penerima"],
         tahun=baris_diperbarui["tahun"],
         abaikan_id=row_id,
-        status="AKTIF",
     )
     if data_sama:
         info_daerah = ", ".join(
@@ -1029,12 +1116,9 @@ def edit_penerima(row_id):
         )
         return redirect(url_for("penerima"))
 
-    if not update_penerima_db(row_id, baris_diperbarui):
-        flash("Data penerima yang ingin diperbarui tidak ditemukan.", "warning")
-        return redirect(url_for("penerima"))
-
+    update_penerima_db(row_id, baris_diperbarui)
     flash("Data penerima berhasil diperbarui.", "success")
-    return redirect(url_for("penerima", kab=baris_diperbarui["kabupaten_kota"], tahun=baris_diperbarui["tahun"]))
+    return redirect(url_for("penerima"))
 
 
 @app.route("/penerima/hapus/<row_id>", methods=["POST"])
@@ -1046,13 +1130,16 @@ def hapus_penerima(row_id):
 
 @app.route("/realisasi-penyaluran", methods=["GET"])
 def realisasi_penyaluran():
-    _, total_penerima, total_dana, rekap_kabupaten = hitung_ringkasan_sql(status="AKTIF")
+    daftar = muat_data()
+    _, total_penerima, total_dana, rekap_kabupaten = hitung_rekap(daftar)
+
     return render_template(
         "realisasi_penyaluran.html",
         peta_kabupaten_lhok=PETA_KABUPATEN_LHOK,
         rekap_kabupaten=rekap_kabupaten,
         total_terdaftar=total_penerima,
         total_dana=total_dana,
+        daftar_penerima=daftar,
     )
 
 
@@ -1066,26 +1153,19 @@ def realisasi_semester_2():
         flash("Silakan pilih minimal satu KABUPATEN/KOTA terlebih dahulu sebelum menekan REALISASI SEMESTER 2.", "warning")
         return redirect(url_for("realisasi_penyaluran"))
 
+    daftar = muat_data()
     jumlah_diupdate = 0
     kab_sudah_penuh = []
     kab_tanpa_data = []
 
-    with db_connection() as conn:
-        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
             for kab in kab_terpilih:
-                sql = """
-                    SELECT id, semester, strata_pendidikan, jumlah_dana
-                    FROM tabel_penerima
-                    WHERE UPPER(status_data) = 'AKTIF'
-                      AND kabupaten_kota = %s
-                """
-                params = [kab]
-                if tahun_filter:
-                    sql += " AND tahun = %s"
-                    params.append(tahun_filter)
-
-                cur.execute(sql, params)
-                baris_kab = cur.fetchall()
+                baris_kab = [
+                    b for b in daftar
+                    if normalisasi_kabupaten(b.get("kabupaten_kota", "")) == kab
+                    and (not tahun_filter or str(b.get("tahun", "")).strip() == tahun_filter)
+                ]
 
                 if not baris_kab:
                     kab_tanpa_data.append(kab)
@@ -1093,7 +1173,7 @@ def realisasi_semester_2():
 
                 baris_belum_penuh = []
                 for b in baris_kab:
-                    sem_baris = str(b.get("semester") or "").strip().upper()
+                    sem_baris = str(b.get("semester", "")).strip().upper()
                     if sem_baris == "1 + 2":
                         continue
                     if semester_filter == "1 GANJIL":
@@ -1110,6 +1190,7 @@ def realisasi_semester_2():
                     dana_baru = hitung_dana_sesuai_semester(b.get("strata_pendidikan", ""), "1 + 2")
                     if dana_baru <= 0:
                         dana_baru = bersihkan_angka(b.get("jumlah_dana", 0)) * 2
+
                     cur.execute(
                         """
                         UPDATE tabel_penerima
@@ -1126,6 +1207,7 @@ def realisasi_semester_2():
             f"REALISASI SEMESTER 2 berhasil diterapkan pada {jumlah_diupdate} data penerima (SEMESTER menjadi '1 + 2' dan dana digandakan).",
             "success",
         )
+
     if kab_sudah_penuh:
         daftar_kab_penuh = ", ".join(kab_sudah_penuh)
         label_tahun = f" untuk Tahun Ajaran {tahun_filter}" if tahun_filter else ""
@@ -1133,6 +1215,7 @@ def realisasi_semester_2():
             f"KABUPATEN/KOTA ({daftar_kab_penuh}) sudah direalisasi penuh untuk dua semester / Tahun Ajaran{label_tahun}.",
             "info",
         )
+
     if kab_tanpa_data and jumlah_diupdate == 0 and not kab_sudah_penuh:
         flash(
             f"Tidak ditemukan data penerima pada KABUPATEN/KOTA: {', '.join(kab_tanpa_data)}.",
@@ -1144,6 +1227,7 @@ def realisasi_semester_2():
 
 @app.route("/format-bank", methods=["GET", "POST"])
 def format_bank():
+    daftar = muat_data()
     kab_terpilih = []
     tahun_filter = ""
     semester_filter = ""
@@ -1160,36 +1244,21 @@ def format_bank():
         if not kab_terpilih:
             flash("Silakan pilih minimal satu KABUPATEN/KOTA yang sudah siap datanya, lalu tekan TAMPILKAN BANK.", "warning")
         else:
-            sql = """
-                SELECT nomor_rekening, nama_penerima, jumlah_dana, kabupaten_kota, semester
-                FROM tabel_penerima
-                WHERE UPPER(status_data) = 'AKTIF'
-                  AND kabupaten_kota = ANY(%s)
-            """
-            params = [kab_terpilih]
-            if tahun_filter:
-                sql += " AND tahun = %s"
-                params.append(tahun_filter)
-            sql += " ORDER BY kabupaten_kota, id ASC"
-
-            with db_connection() as conn:
-                with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                    cur.execute(sql, params)
-                    rows = cur.fetchall()
-
-            idx_tampil = 0
-            for r in rows:
-                if not cocok_semester_bank(r.get("semester", ""), semester_filter):
-                    continue
-                idx_tampil += 1
-                dana_baris = bersihkan_angka(r.get("jumlah_dana", 0))
+            sumber = [
+                b for b in daftar
+                if normalisasi_kabupaten(b.get("kabupaten_kota", "")) in kab_terpilih
+                and (not tahun_filter or str(b.get("tahun", "")).strip() == tahun_filter)
+                and cocok_semester_bank(b.get("semester", ""), semester_filter)
+            ]
+            for idx, b in enumerate(sumber, start=1):
+                dana_baris = bersihkan_angka(b.get("jumlah_dana", 0))
                 total_dana_bank += dana_baris
                 data_bank.append({
-                    "no": idx_tampil,
-                    "nomor_rekening": str(r.get("nomor_rekening") or "").strip(),
-                    "nama_penerima": ekstrak_nama_penerima(r.get("nama_penerima") or ""),
+                    "no": idx,
+                    "nomor_rekening": str(b.get("nomor_rekening", "")).strip(),
+                    "nama_penerima": ekstrak_nama_penerima(b.get("nama_penerima", "")),
                     "jumlah_dana": dana_baris,
-                    "kabupaten_kota": normalisasi_kabupaten(r.get("kabupaten_kota") or ""),
+                    "kabupaten_kota": normalisasi_kabupaten(b.get("kabupaten_kota", "")),
                 })
 
             if not data_bank:
@@ -1212,6 +1281,7 @@ def format_bank():
 
 @app.route("/import-data", methods=["GET", "POST"])
 def import_data():
+    daftar = muat_data()
     ringkasan_import = None
     tahun_bawaan = ""
     semester_bawaan = ""
@@ -1241,6 +1311,7 @@ def import_data():
         berkas_upload = request.files.get("file_import")
 
         kumpulan_sel = []
+
         if berkas_upload and berkas_upload.filename:
             try:
                 kumpulan_sel.extend(baca_file_import(berkas_upload))
@@ -1255,25 +1326,12 @@ def import_data():
             flash("File tidak terdeteksi atau kosong. Silakan pilih file (.csv / .xlsx / .txt) atau tempelkan data baris terlebih dahulu.", "warning")
             return redirect(url_for("import_data"))
 
-        nama_sudah_ada = set()
-        if mode_import != "timpa" and not izinkan_ganda:
-            with db_connection() as conn:
-                with conn.cursor() as cur:
-                    if tahun_bawaan:
-                        cur.execute(
-                            "SELECT UPPER(TRIM(nama_penerima)) FROM tabel_penerima WHERE UPPER(status_data) = 'AKTIF' AND tahun = %s",
-                            (tahun_bawaan,),
-                        )
-                    else:
-                        cur.execute(
-                            "SELECT UPPER(TRIM(nama_penerima)) FROM tabel_penerima WHERE UPPER(status_data) = 'AKTIF'"
-                        )
-                    nama_sudah_ada = {str(r[0]).strip() for r in cur.fetchall() if r[0]}
+        basis_data = [] if mode_import == "timpa" else list(daftar)
 
         ditambahkan = 0
         dilewati_duplikat = 0
         dilewati_tidak_valid = 0
-        tuples_untuk_disimpan = []
+        baris_untuk_disimpan = []
 
         for sel in kumpulan_sel:
             baris_baru = bentuk_baris_import(
@@ -1286,50 +1344,65 @@ def import_data():
                 dilewati_tidak_valid += 1
                 continue
 
-            dana_bersih = bersihkan_angka(baris_baru.get("jumlah_dana", 0))
-            if dana_bersih <= 0:
+            if not baris_baru.get("kabupaten_kota"):
+                baris_baru["kabupaten_kota"] = "TIDAK TERISI"
+
+            if not baris_baru.get("semester"):
+                baris_baru["semester"] = "1 GANJIL"
+
+            if bersihkan_angka(baris_baru.get("jumlah_dana", 0)) <= 0:
                 dilewati_tidak_valid += 1
                 continue
 
-            kunci_nama = baris_baru["nama_penerima"]
-            if not izinkan_ganda and kunci_nama in nama_sudah_ada:
+            data_sama = cari_data_sama(
+                basis_data,
+                baris_baru["nama_penerima"],
+                tahun=baris_baru["tahun"],
+            )
+            if data_sama and not izinkan_ganda:
                 dilewati_duplikat += 1
                 continue
 
-            nama_sudah_ada.add(kunci_nama)
-            tuples_untuk_disimpan.append((
-                baris_baru["tahun"],
-                baris_baru["semester"],
-                baris_baru["kabupaten_kota"],
-                baris_baru["lhok"],
-                baris_baru["nama_penerima"],
-                baris_baru["alamat"],
-                baris_baru["strata_pendidikan"],
-                baris_baru["nomor_rekening"],
-                dana_bersih,
-                "AKTIF",
-            ))
+            basis_data.append(baris_baru)
+            baris_untuk_disimpan.append(baris_baru)
             ditambahkan += 1
 
-        if tuples_untuk_disimpan or mode_import == "timpa":
-            with db_connection() as conn:
+        if ditambahkan > 0 or mode_import == "timpa":
+            with get_db_connection() as conn:
                 with conn.cursor() as cur:
                     if mode_import == "timpa":
                         cur.execute("DELETE FROM tabel_penerima WHERE status_data = 'AKTIF'")
-                    if tuples_untuk_disimpan:
-                        execute_values(
-                            cur,
+                    for b in baris_untuk_disimpan:
+                        cur.execute(
                             """
                             INSERT INTO tabel_penerima (
-                                tahun, semester, kabupaten_kota, lhok, nama_penerima,
-                                alamat, strata_pendidikan, nomor_rekening, jumlah_dana, status_data
+                                tahun,
+                                semester,
+                                kabupaten_kota,
+                                lhok,
+                                nama_penerima,
+                                alamat,
+                                strata_pendidikan,
+                                nomor_rekening,
+                                jumlah_dana,
+                                status_data
                             )
-                            VALUES %s
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'AKTIF')
                             """,
-                            tuples_untuk_disimpan,
-                            page_size=500,
+                            (
+                                b["tahun"],
+                                b["semester"],
+                                b["kabupaten_kota"],
+                                b["lhok"],
+                                b["nama_penerima"],
+                                b["alamat"],
+                                b["strata_pendidikan"],
+                                b["nomor_rekening"],
+                                bersihkan_angka(b["jumlah_dana"]),
+                            ),
                         )
-            conn.commit()
+                conn.commit()
+            daftar = muat_data()
 
         ringkasan_import = {
             "ditambahkan": ditambahkan,
@@ -1342,7 +1415,7 @@ def import_data():
             "success" if ditambahkan > 0 else "warning",
         )
 
-    rekap_jenjang, total_penerima, total_dana, rekap_kabupaten = hitung_ringkasan_sql(status="AKTIF")
+    rekap_jenjang, total_penerima, total_dana, rekap_kabupaten = hitung_rekap(daftar)
 
     return render_template(
         "import_data.html",
@@ -1362,6 +1435,9 @@ def import_data():
 
 @app.route("/arsip", methods=["GET", "POST"])
 def arsip():
+    daftar_aktif = muat_data()
+    daftar_arsip = muat_arsip()
+
     if request.method == "POST":
         aksi = (request.form.get("aksi") or "").strip().lower()
 
@@ -1373,56 +1449,35 @@ def arsip():
                 flash("Pilih Tahun Ajaran atau Kabupaten/Kota terlebih dahulu untuk mengarsipkan data.", "warning")
                 return redirect(url_for("arsip"))
 
-            where = ["UPPER(status_data) = 'AKTIF'"]
-            params = []
-            if tahun_target:
-                where.append("tahun = %s")
-                params.append(tahun_target)
-            if kab_target:
-                where.append("kabupaten_kota = %s")
-                params.append(kab_target)
+            id_dipindahkan = [
+                b["id"] for b in daftar_aktif
+                if (not tahun_target or str(b.get("tahun", "")).strip() == tahun_target)
+                and (not kab_target or normalisasi_kabupaten(b.get("kabupaten_kota", "")) == kab_target)
+            ]
 
-            with db_connection() as conn:
-                with conn.cursor() as cur:
-                    cur.execute(
-                        f"UPDATE tabel_penerima SET status_data = 'ARSIP' WHERE {' AND '.join(where)}",
-                        params,
-                    )
-                    jumlah = cur.rowcount
-                conn.commit()
-
-            if jumlah <= 0:
+            if not id_dipindahkan:
                 flash("Tidak ada data aktif yang cocok dengan kriteria arsip yang dipilih.", "info")
-            else:
-                flash(
-                    f"Berhasil mengarsipkan {jumlah} data penerima ke Data Arsip (terkunci dari edit/hapus langsung).",
-                    "success",
-                )
+                return redirect(url_for("arsip"))
+
+            jumlah = update_status_penerima_db(id_dipindahkan, "ARSIP")
+            flash(
+                f"Berhasil mengarsipkan {jumlah} data penerima ke Data Arsip (terkunci dari edit/hapus langsung).",
+                "success",
+            )
             return redirect(url_for("arsip"))
 
         if aksi == "restore_item":
             row_id = (request.form.get("row_id") or "").strip()
-            if not row_id.isdigit():
+            target = next((b for b in daftar_arsip if str(b.get("id")) == row_id), None)
+            if not target:
                 flash("Data arsip yang ingin di-restore tidak ditemukan.", "warning")
                 return redirect(url_for("arsip"))
 
-            with db_connection() as conn:
-                with conn.cursor() as cur:
-                    cur.execute(
-                        "SELECT nama_penerima FROM tabel_penerima WHERE id = %s AND UPPER(status_data) = 'ARSIP'",
-                        (int(row_id),),
-                    )
-                    row = cur.fetchone()
-                    if not row:
-                        flash("Data arsip yang ingin di-restore tidak ditemukan.", "warning")
-                        return redirect(url_for("arsip"))
-                    cur.execute(
-                        "UPDATE tabel_penerima SET status_data = 'AKTIF' WHERE id = %s",
-                        (int(row_id),),
-                    )
-                conn.commit()
-
-            flash(f"Data '{row[0]}' berhasil di-restore ke Data Penerima aktif.", "success")
+            update_status_penerima_db([row_id], "AKTIF")
+            flash(
+                f"Data '{target.get('nama_penerima', '')}' berhasil di-restore ke Data Penerima aktif.",
+                "success",
+            )
             return redirect(url_for("arsip"))
 
         if aksi == "restore_tahun":
@@ -1431,56 +1486,50 @@ def arsip():
                 flash("Pilih Tahun Ajaran arsip yang ingin di-restore terlebih dahulu.", "warning")
                 return redirect(url_for("arsip"))
 
-            with db_connection() as conn:
-                with conn.cursor() as cur:
-                    cur.execute(
-                        "UPDATE tabel_penerima SET status_data = 'AKTIF' WHERE UPPER(status_data) = 'ARSIP' AND tahun = %s",
-                        (tahun_restore,),
-                    )
-                    jumlah = cur.rowcount
-                conn.commit()
+            id_dipulihkan = [
+                b["id"] for b in daftar_arsip
+                if str(b.get("tahun", "")).strip() == tahun_restore
+            ]
 
-            if jumlah <= 0:
+            if not id_dipulihkan:
                 flash(f"Tidak ada data arsip untuk Tahun Ajaran {tahun_restore}.", "info")
-            else:
-                flash(
-                    f"Berhasil me-restore {jumlah} data arsip Tahun Ajaran {tahun_restore} kembali ke Data Penerima aktif.",
-                    "success",
-                )
+                return redirect(url_for("arsip"))
+
+            jumlah = update_status_penerima_db(id_dipulihkan, "AKTIF")
+            flash(
+                f"Berhasil me-restore {jumlah} data arsip Tahun Ajaran {tahun_restore} kembali ke Data Penerima aktif.",
+                "success",
+            )
             return redirect(url_for("arsip"))
 
     tahun_filter = request.args.get("tahun", "").strip()
     kab_arg = request.args.get("kab", "").strip()
     kab_filter = normalisasi_kabupaten(kab_arg) if kab_arg else ""
-    halaman = max(1, int(request.args.get("page", 1) or 1))
-    per_halaman = max(10, min(200, int(request.args.get("per_page", 50) or 50)))
-    offset = (halaman - 1) * per_halaman
 
-    daftar_tahun_aktif = ambil_daftar_tahun_db(status="AKTIF")
-    daftar_tahun_arsip = ambil_daftar_tahun_db(status="ARSIP")
-
-    _, _, total_dana_semua_arsip, _ = hitung_ringkasan_sql(status="ARSIP")
-    _, _, total_dana_arsip, _ = hitung_ringkasan_sql(
-        status="ARSIP",
-        tahun=tahun_filter,
-        kabupaten=kab_filter,
+    daftar_tahun_aktif = sorted(
+        {str(b.get("tahun", "") or "").strip() for b in daftar_aktif if str(b.get("tahun", "") or "").strip()},
+        reverse=True,
+    )
+    daftar_tahun_arsip = sorted(
+        {str(b.get("tahun", "") or "").strip() for b in daftar_arsip if str(b.get("tahun", "") or "").strip()},
+        reverse=True,
     )
 
-    arsip_tampil, total_arsip_tampil = ambil_penerima_halaman(
-        status="ARSIP",
-        tahun=tahun_filter,
-        kabupaten=kab_filter,
-        limit=per_halaman,
-        offset=offset,
-    )
+    arsip_tampil = [
+        b for b in daftar_arsip
+        if (not tahun_filter or str(b.get("tahun", "")).strip() == tahun_filter)
+        and (not kab_filter or normalisasi_kabupaten(b.get("kabupaten_kota", "")) == kab_filter)
+    ]
+
+    total_dana_arsip = sum(bersihkan_angka(b.get("jumlah_dana", 0)) for b in arsip_tampil)
+    total_dana_semua_arsip = sum(bersihkan_angka(b.get("jumlah_dana", 0)) for b in daftar_arsip)
 
     return render_template(
         "arsip.html",
         peta_kabupaten_lhok=PETA_KABUPATEN_LHOK,
+        daftar_aktif=daftar_aktif,
+        daftar_arsip=daftar_arsip,
         arsip_tampil=arsip_tampil,
-        total_arsip_tampil=total_arsip_tampil,
-        halaman=halaman,
-        per_halaman=per_halaman,
         daftar_tahun_aktif=daftar_tahun_aktif,
         daftar_tahun_arsip=daftar_tahun_arsip,
         tahun_filter=tahun_filter,
@@ -1491,4 +1540,4 @@ def arsip():
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=False)
+    app.run(host="0.0.0.0", port=5000, debug=True)
